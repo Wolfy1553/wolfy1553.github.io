@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Facebook + Instagram Demo</title>
+  <script async defer crossorigin="anonymous"
+    src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .box { border: 1px solid #ccc; padding: 15px; margin-top: 20px; border-radius: 8px; }
+  </style>
+</head>
+
+<body>
+
+<h2>Facebook + Instagram Posting Demo</h2>
+<p>This page is created ONLY for Facebook App Review to test permissions.</p>
+
+<button onclick="fbLogin()">Login with Facebook</button>
+
+<div id="pageSection" class="box" style="display:none;">
+  <h3>Step 1: Select Facebook Page</h3>
+  <select id="pageList"></select>
+</div>
+
+<div id="igSection" class="box" style="display:none;">
+  <h3>Step 2: Instagram Account</h3>
+  <div id="igInfo"></div>
+</div>
+
+<div id="uploadSection" class="box" style="display:none;">
+  <h3>Step 3: Select Image to Post</h3>
+  <input type="file" id="imgFile"><br><br>
+
+  <label>Schedule Date:</label>
+  <input type="datetime-local" id="scheduleDate"><br><br>
+
+  <button onclick="postToPage()">Post to Facebook Page</button>
+  <button onclick="postToInstagram()">Post to Instagram</button>
+</div>
+
+<script>
+  let userAccessToken = "";
+  let selectedPage = null;
+  let igUserId = null;
+
+  window.fbAsyncInit = function() {
+    FB.init({
+      appId: "YOUR_APP_ID",
+      autoLogAppEvents: true,
+      xfbml: true,
+      version: "v20.0"
+    });
+  };
+
+  // ----------------------------------------------------------
+  // Step 1: Login
+  // ----------------------------------------------------------
+  function fbLogin() {
+    FB.login((response) => {
+      if (response.authResponse) {
+        userAccessToken = response.authResponse.accessToken;
+        loadPages();
+      }
+    }, {
+      scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish'
+    });
+  }
+
+  // ----------------------------------------------------------
+  // Step 2: Get User Pages
+  // ----------------------------------------------------------
+  function loadPages() {
+    FB.api('/me/accounts', 'GET', (res) => {
+      const select = document.getElementById('pageList');
+      select.innerHTML = "";
+
+      res.data.forEach(page => {
+        const opt = document.createElement("option");
+        opt.value = page.id + "|" + page.access_token;
+        opt.innerText = page.name;
+        select.appendChild(opt);
+      });
+
+      document.getElementById('pageSection').style.display = "block";
+
+      select.onchange = () => {
+        const parts = select.value.split("|");
+        selectedPage = { id: parts[0], token: parts[1] };
+        loadInstagramAccount();
+      };
+    });
+  }
+
+  // ----------------------------------------------------------
+  // Step 3: From Page → Get Instagram Account
+  // ----------------------------------------------------------
+  function loadInstagramAccount() {
+    FB.api(`/${selectedPage.id}?fields=instagram_business_account`, (res) => {
+      if (res.instagram_business_account) {
+        igUserId = res.instagram_business_account.id;
+        document.getElementById("igInfo").innerHTML =
+          "Instagram Business ID: " + igUserId;
+
+        document.getElementById('igSection').style.display = "block";
+        document.getElementById('uploadSection').style.display = "block";
+      } else {
+        igUserId = null;
+        document.getElementById("igInfo").innerHTML =
+          "No Instagram account linked to this Page.";
+      }
+    });
+  }
+
+  // ----------------------------------------------------------
+  // Facebook Page Posting
+  // ----------------------------------------------------------
+  function postToPage() {
+    alert("Demo only. Reviewer can see posting logic here.");
+  }
+
+  // ----------------------------------------------------------
+  // Instagram Posting
+  // ----------------------------------------------------------
+  function postToInstagram() {
+    alert("Demo only. Reviewer can see Instagram publishing flow.");
+  }
+</script>
+
+</body>
+</html>
