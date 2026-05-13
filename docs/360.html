@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-<title>360 Coordinate Editor</title>
+<title>360 Coordinate Match Tool</title>
 
 <style>
 
@@ -18,7 +18,7 @@
 body{
   overflow:hidden;
   background:#111;
-  color:white;
+  color:#fff;
 }
 
 #app{
@@ -30,14 +30,14 @@ body{
 #viewer{
   width:82%;
   height:100%;
-  background:black;
+  background:#000;
 }
 
 #sidebar{
   width:18%;
   height:100%;
   overflow:auto;
-  background:#1e1e1e;
+  background:#1d1d1d;
   padding:15px;
 }
 
@@ -57,7 +57,7 @@ body{
   border:none;
   border-radius:4px;
   background:#2d2d2d;
-  color:white;
+  color:#fff;
 }
 
 button{
@@ -67,12 +67,12 @@ button{
   border:none;
   border-radius:4px;
   background:#0b84ff;
-  color:white;
+  color:#fff;
   cursor:pointer;
 }
 
 button:hover{
-  background:#006fe0;
+  background:#006de0;
 }
 
 #jsonOutput{
@@ -80,13 +80,14 @@ button:hover{
   background:#111;
   padding:10px;
   border-radius:4px;
-  font-size:11px;
   color:#00ff90;
+  font-size:11px;
   white-space:pre-wrap;
 }
 
 </style>
 </head>
+
 <body>
 
 <div id="app">
@@ -121,6 +122,13 @@ button:hover{
     </div>
 
     <div class="group">
+      <label>Grout Size</label>
+      <input type="number" step="0.001" id="groutSize" value="0.01">
+    </div>
+
+    <hr style="margin:15px 0;border-color:#333;">
+
+    <div class="group">
       <label>Position X</label>
       <input type="number" step="0.01" id="posX" value="0">
     </div>
@@ -132,27 +140,46 @@ button:hover{
 
     <div class="group">
       <label>Position Z</label>
-      <input type="number" step="0.01" id="posZ" value="-5">
+      <input type="number" step="0.01" id="posZ" value="0">
     </div>
 
     <div class="group">
-      <label>Rotation X</label>
-      <input type="number" id="rotX" value="0">
+      <label>Rotation X (Radians)</label>
+      <input type="number" step="0.001" id="rotX" value="0">
     </div>
 
     <div class="group">
-      <label>Rotation Y</label>
-      <input type="number" id="rotY" value="0">
+      <label>Rotation Y (Radians)</label>
+      <input type="number" step="0.001" id="rotY" value="0">
     </div>
 
     <div class="group">
-      <label>Rotation Z</label>
-      <input type="number" id="rotZ" value="0">
+      <label>Rotation Z (Radians)</label>
+      <input type="number" step="0.001" id="rotZ" value="0">
     </div>
 
-    <button id="updateBtn">Update Wall</button>
+    <div class="group">
+      <label>Scale X</label>
+      <input type="number" step="0.1" id="scaleX" value="1">
+    </div>
 
-    <button id="copyBtn">Copy JSON</button>
+    <div class="group">
+      <label>Scale Y</label>
+      <input type="number" step="0.1" id="scaleY" value="1">
+    </div>
+
+    <div class="group">
+      <label>Scale Z</label>
+      <input type="number" step="0.1" id="scaleZ" value="1">
+    </div>
+
+    <button id="updateBtn">
+      Update Wall
+    </button>
+
+    <button id="copyBtn">
+      Copy JSON
+    </button>
 
     <div id="jsonOutput"></div>
 
@@ -170,9 +197,11 @@ const viewer = document.getElementById('viewer');
 
 const scene = new THREE.Scene();
 
+scene.background = new THREE.Color(0x000000);
+
 const camera = new THREE.PerspectiveCamera(
   75,
-  viewer.clientWidth / viewer.clientHeight,
+  window.innerWidth / window.innerHeight,
   0.1,
   1000
 );
@@ -180,12 +209,17 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0,0,0.1);
 
 const renderer = new THREE.WebGLRenderer({
-  antialias:true
+  antialias:true,
+  precision:'highp'
 });
 
+renderer.setClearColor(0xffffff,1);
+
+renderer.setPixelRatio(window.devicePixelRatio);
+
 renderer.setSize(
-  viewer.clientWidth,
-  viewer.clientHeight
+  window.innerWidth,
+  window.innerHeight
 );
 
 viewer.appendChild(renderer.domElement);
@@ -197,12 +231,25 @@ const controls = new THREE.OrbitControls(
 
 controls.enableZoom = false;
 controls.enablePan = false;
-controls.enableDamping = true;
+controls.enableRotate = true;
 controls.rotateSpeed = -0.5;
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+camera.position.set(0,0,0.1);
+
+controls.target.set(0,0,0);
 
 scene.add(
-  new THREE.AmbientLight(0xffffff,1)
+  new THREE.AmbientLight(0xffffff,0.5)
 );
+
+const directionalLight =
+  new THREE.DirectionalLight(0xffffff,1);
+
+directionalLight.position.set(10,10,10);
+
+scene.add(directionalLight);
 
 let cubeMesh = null;
 let wallMesh = null;
@@ -211,18 +258,14 @@ function createCubeEnvironment(url){
 
   const image = new Image();
 
-  image.onload = function(){
+  image.crossOrigin = 'anonymous';
+
+  image.onload = ()=>{
 
     const faceSize = image.height;
 
     const faceMap = [
-      // { x: faceSize, y: 0 },
-      // { x: faceSize * 3, y: 0 },
-      // { x: faceSize * 2, y: 0 },
-      // { x: 0, y: 0 },
-      // { x: faceSize * 4, y: 0 },
-      // { x: faceSize * 5, y: 0 },
-       { x: faceSize, y: 0 }, // Right
+      { x: faceSize, y: 0 }, // Right
       { x: faceSize * 3, y: 0 }, // Left
       { x: faceSize * 4, y: 0 }, // Top
       { x: faceSize * 5, y: 0 }, // Bottom
@@ -230,23 +273,39 @@ function createCubeEnvironment(url){
       { x: faceSize * 2, y: 0 }, // Back
     ];
 
-    const materials = [];
+    const textures = [];
 
     for(let i=0;i<6;i++){
 
-      const canvas = document.createElement('canvas');
+      const { x, y } = faceMap[i];
+
+      const canvas =
+        document.createElement('canvas');
 
       canvas.width = faceSize;
       canvas.height = faceSize;
 
       const ctx = canvas.getContext('2d');
 
-      const pos = faceMap[i];
+      if(i === 2 || i === 3){
+
+        ctx.translate(
+          faceSize/2,
+          faceSize/2
+        );
+
+        ctx.rotate(Math.PI);
+
+        ctx.translate(
+          -faceSize/2,
+          -faceSize/2
+        );
+      }
 
       ctx.drawImage(
         image,
-        pos.x,
-        pos.y,
+        x,
+        y,
         faceSize,
         faceSize,
         0,
@@ -258,20 +317,32 @@ function createCubeEnvironment(url){
       const texture =
         new THREE.CanvasTexture(canvas);
 
-      texture.needsUpdate = true;
+      texture.minFilter =
+        THREE.LinearMipMapLinearFilter;
 
-      materials.push(
-        new THREE.MeshBasicMaterial({
-          map:texture,
-          side:THREE.BackSide
-        })
-      );
+      texture.magFilter =
+        THREE.LinearFilter;
+
+      texture.generateMipmaps = true;
+
+      textures.push(texture);
     }
 
     if(cubeMesh){
 
       scene.remove(cubeMesh);
     }
+
+    const materials = textures.map((tex)=>{
+
+      return new THREE.MeshBasicMaterial({
+        map:tex,
+        transparent:true,
+        opacity:1,
+        side:THREE.BackSide
+      });
+
+    });
 
     cubeMesh = new THREE.Mesh(
       new THREE.BoxGeometry(20,20,20),
@@ -280,7 +351,6 @@ function createCubeEnvironment(url){
 
     scene.add(cubeMesh);
 
-    console.log('360 Loaded');
   };
 
   image.src = url;
@@ -305,87 +375,280 @@ function createWall(){
   const tileHeight =
     Number($('#tileHeight').val());
 
-  const sceneWidth = surfaceWidth / 1000;
-  const sceneHeight = surfaceHeight / 1000;
+  const groutSize =
+    Number($('#groutSize').val());
 
-  const tileW = tileWidth / 1000;
-  const tileH = tileHeight / 1000;
+  // EXACT SAME AS LIVE MODULE
 
-  const cols = Math.ceil(surfaceWidth / tileWidth);
-  const rows = Math.ceil(surfaceHeight / tileHeight);
+  const sceneWidth =
+    surfaceWidth / 1000;
 
-  const group = new THREE.Group();
+  const sceneHeight =
+    (surfaceHeight / surfaceWidth)
+    * sceneWidth;
 
-  const bg = new THREE.Mesh(
+  const tileWidth3D =
+    (tileWidth / surfaceWidth)
+    * sceneWidth;
+
+  const tileHeight3D =
+    (tileHeight / surfaceHeight)
+    * sceneHeight;
+
+  const tileCountX =
+    Math.ceil(surfaceWidth / tileWidth);
+
+  const tileCountY =
+    Math.ceil(surfaceHeight / tileHeight);
+
+  const tileGrid =
+    new THREE.Group();
+
+  // ==================================================
+  // GROUT BACKGROUND
+  // ==================================================
+
+  const groutPlane = new THREE.Mesh(
     new THREE.PlaneGeometry(
       sceneWidth,
       sceneHeight
     ),
     new THREE.MeshBasicMaterial({
-      color:0x444444,
-      side:THREE.DoubleSide,
+      color:0x00ffcc,
       transparent:true,
-      opacity:0.5
+      opacity:0.45,
+      side:THREE.DoubleSide
     })
   );
 
-  group.add(bg);
+  groutPlane.position.z = -0.0025;
 
-  for(let y=0;y<rows;y++){
+  tileGrid.add(groutPlane);
 
-    for(let x=0;x<cols;x++){
+  // ==================================================
+  // OUTLINE
+  // ==================================================
+
+  const edges =
+    new THREE.EdgesGeometry(
+      groutPlane.geometry
+    );
+
+  const outline =
+    new THREE.LineSegments(
+      edges,
+      new THREE.LineBasicMaterial({
+        color:0xffff00
+      })
+    );
+
+  tileGrid.add(outline);
+
+  // ==================================================
+  // TILES
+  // ==================================================
+
+  for(let row=0;row<tileCountY;row++){
+
+    for(let col=0;col<tileCountX;col++){
 
       const tile = new THREE.Mesh(
+
         new THREE.PlaneGeometry(
-          tileW,
-          tileH
+          tileWidth3D,
+          tileHeight3D
         ),
+
         new THREE.MeshBasicMaterial({
-          color:0xffffff,
-          wireframe:true,
+          color:0xff0000,
+          transparent:true,
+          opacity:0.9,
           side:THREE.DoubleSide
         })
+
       );
 
+      // EXACT SAME AS LIVE MODULE
+
       tile.position.x =
-        x * tileW - sceneWidth/2 + tileW/2;
+
+        col * (tileWidth3D + groutSize)
+
+        - sceneWidth / 2
+
+        + tileWidth3D / 2;
 
       tile.position.y =
-        y * tileH - sceneHeight/2 + tileH/2;
 
-      tile.position.z = 0.001;
+        row * (tileHeight3D + groutSize)
 
-      group.add(tile);
+        - sceneHeight / 2
+
+        + tileHeight3D / 2;
+
+      tileGrid.add(tile);
     }
   }
 
-  wallMesh = group;
+  // ==================================================
+  // LABEL
+  // ==================================================
+
+  const canvas =
+    document.createElement('canvas');
+
+  canvas.width = 256;
+  canvas.height = 100;
+
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle =
+    'rgba(255,255,255,0.6)';
+
+//   roundRect(
+//     ctx,
+//     68,
+//     30,
+//     120,
+//     40,
+//     20
+//   );
+
+//   ctx.fill();
+
+//   ctx.font = '700 25px Arial';
+
+//   ctx.fillStyle = '#000';
+
+//   ctx.textAlign = 'center';
+
+//   ctx.textBaseline = 'middle';
+
+//   ctx.fillText(
+//     'WALL',
+//     128,
+//     50
+//   );
+
+  const tex =
+    new THREE.CanvasTexture(canvas);
+
+  const label =
+    new THREE.Mesh(
+
+      new THREE.PlaneGeometry(
+        1.2,
+        0.5
+      ),
+
+      new THREE.MeshBasicMaterial({
+        map:tex,
+        transparent:true,
+      })
+
+    );
+
+  label.position.set(
+    0,
+    0,
+    0.02
+  );
+
+  tileGrid.add(label);
+
+  wallMesh = tileGrid;
 
   scene.add(wallMesh);
 
   updateWall();
 }
 
+function roundRect(
+  ctx,
+  x,
+  y,
+  w,
+  h,
+  r
+){
+
+  ctx.beginPath();
+
+  ctx.moveTo(x+r,y);
+
+  ctx.lineTo(x+w-r,y);
+
+  ctx.quadraticCurveTo(
+    x+w,
+    y,
+    x+w,
+    y+r
+  );
+
+  ctx.lineTo(x+w,y+h-r);
+
+  ctx.quadraticCurveTo(
+    x+w,
+    y+h,
+    x+w-r,
+    y+h
+  );
+
+  ctx.lineTo(x+r,y+h);
+
+  ctx.quadraticCurveTo(
+    x,
+    y+h,
+    x,
+    y+h-r
+  );
+
+  ctx.lineTo(x,y+r);
+
+  ctx.quadraticCurveTo(
+    x,
+    y,
+    x+r,
+    y
+  );
+
+  ctx.closePath();
+}
+
 function updateWall(){
 
   if(!wallMesh) return;
 
+  // EXACT SAME AS LIVE MODULE
+
   wallMesh.position.set(
+
     Number($('#posX').val()),
+
     Number($('#posY').val()),
+
     Number($('#posZ').val())
+
   );
 
   wallMesh.rotation.set(
-    THREE.Math.degToRad(
-      Number($('#rotX').val())
-    ),
-    THREE.Math.degToRad(
-      Number($('#rotY').val())
-    ),
-    THREE.Math.degToRad(
-      Number($('#rotZ').val())
-    )
+
+    Number($('#rotX').val()),
+
+    Number($('#rotY').val()),
+
+    Number($('#rotZ').val())
+
+  );
+
+  wallMesh.scale.set(
+
+    Number($('#scaleX').val()),
+
+    Number($('#scaleY').val()),
+
+    Number($('#scaleZ').val())
+
   );
 
   updateJSON();
@@ -394,44 +657,77 @@ function updateWall(){
 function updateJSON(){
 
   $('#jsonOutput').text(
-    JSON.stringify({
-      position:wallMesh.position,
-      rotation:wallMesh.rotation
-    },null,2)
+
+JSON.stringify({
+
+  position:{
+    x:wallMesh.position.x,
+    y:wallMesh.position.y,
+    z:wallMesh.position.z
+  },
+
+  rotation:{
+    x:wallMesh.rotation.x,
+    y:wallMesh.rotation.y,
+    z:wallMesh.rotation.z
+  },
+
+  scale:{
+    x:wallMesh.scale.x,
+    y:wallMesh.scale.y,
+    z:wallMesh.scale.z
+  }
+
+},null,2)
+
   );
 }
 
 createWall();
 
-$('#cubeUpload').on('change',function(e){
+$('#cubeUpload').on(
+  'change',
+  function(e){
 
-  const file = e.target.files[0];
+    const file =
+      e.target.files[0];
 
-  if(!file) return;
+    if(!file) return;
 
-  const url = URL.createObjectURL(file);
+    const url =
+      URL.createObjectURL(file);
 
-  createCubeEnvironment(url);
-});
+    createCubeEnvironment(url);
+  }
+);
 
-$('#updateBtn').on('click',function(){
+$('#updateBtn').on(
+  'click',
+  function(){
 
-  createWall();
-});
+    createWall();
+  }
+);
 
-$('#copyBtn').on('click',function(){
+$('#copyBtn').on(
+  'click',
+  function(){
 
-  navigator.clipboard.writeText(
-    $('#jsonOutput').text()
-  );
+    navigator.clipboard.writeText(
+      $('#jsonOutput').text()
+    );
 
-  alert('Copied');
-});
+    alert('Copied');
+  }
+);
 
-$('input').on('input',function(){
+$('input').on(
+  'input',
+  function(){
 
-  updateWall();
-});
+    updateWall();
+  }
+);
 
 function animate(){
 
@@ -439,24 +735,30 @@ function animate(){
 
   controls.update();
 
-  renderer.render(scene,camera);
+  renderer.render(
+    scene,
+    camera
+  );
 }
 
 animate();
 
-window.addEventListener('resize',()=>{
+window.addEventListener(
+  'resize',
+  ()=>{
 
-  camera.aspect =
-    viewer.clientWidth /
-    viewer.clientHeight;
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
 
-  camera.updateProjectionMatrix();
+    camera.updateProjectionMatrix();
 
-  renderer.setSize(
-    viewer.clientWidth,
-    viewer.clientHeight
-  );
-});
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
 
 </script>
 
