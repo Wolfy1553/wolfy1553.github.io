@@ -298,12 +298,18 @@ function createCubeEnvironment(url){
 
     const faceMap = [
 
-      { x: faceSize, y: 0 },
-      { x: faceSize * 3, y: 0 },
-      { x: faceSize * 4, y: 0 },
-      { x: faceSize * 5, y: 0 },
-      { x: 0, y: 0 },
-      { x: faceSize * 2, y: 0 },
+      // { x: faceSize, y: 0 },
+      // { x: faceSize * 3, y: 0 },
+      // { x: faceSize * 4, y: 0 },
+      // { x: faceSize * 5, y: 0 },
+      // { x: 0, y: 0 },
+      // { x: faceSize * 2, y: 0 },
+       { x: 0, y: 0 }, // Right
+      { x: faceSize, y: 0 }, // Left
+      { x: faceSize * 2, y: 0 }, // Top
+      { x: faceSize * 3, y: 0 }, // Bottom
+      { x: faceSize * 4, y: 0 }, // Front
+      { x: faceSize * 5, y: 0 }, // Back
 
     ];
 
@@ -325,20 +331,20 @@ function createCubeEnvironment(url){
       const ctx =
         canvas.getContext('2d');
 
-      if(i === 2 || i === 3){
+      // if(i === 2 || i === 3){
 
-        ctx.translate(
-          faceSize/2,
-          faceSize/2
-        );
+      //   ctx.translate(
+      //     faceSize/2,
+      //     faceSize/2
+      //   );
 
-        ctx.rotate(Math.PI);
+      //   ctx.rotate(Math.PI);
 
-        ctx.translate(
-          -faceSize/2,
-          -faceSize/2
-        );
-      }
+      //   ctx.translate(
+      //     -faceSize/2,
+      //     -faceSize/2
+      //   );
+      // }
 
       ctx.drawImage(
         image,
