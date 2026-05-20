@@ -30,37 +30,65 @@ body{
 #viewer{
   width:82%;
   height:100%;
-  background:#000;
+  background:#fff;
 }
 
 #sidebar{
-  width:18%;
-  height:100%;
-  overflow:auto;
-  background:#1d1d1d;
-  padding:15px;
+  width:320px;
+  min-width:320px;
+  background:#F5F5F5;
+  padding:14px;
+  overflow-y:auto;
+  border-left:1px solid #333;
 }
 
 .group{
-  margin-bottom:12px;
+  margin-bottom:10px;
 }
 
 .group label{
   display:block;
-  margin-bottom:5px;
-  font-size:12px;
+  margin-bottom:4px;
+  font-size:14px;
+  color:#262626;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
 }
 
 .group input,
 .group select{
   width:100%;
-  padding:8px;
-  border:none;
-  border-radius:4px;
-  background:#2d2d2d;
-  color:#fff;
+  height:38px;
+  padding:0 12px;
+  border-radius:8px;
+  border:1px solid #2f2f2f;
+  background:#ffffff;
+  color:#000000;
+  font-size:25px;
+  font-weight:700;
+  transition:all .15s ease;
+}
+.group input:focus,
+.group select:focus{
+  outline:none;
+  border-color:#2f2f2f;
+  background:#ffffff;
+}
+.surface-field{
+  border-left:4px solid #ff0044 !important;
+}
+.position-field{
+  border-left:4px solid #00b7ff !important;
 }
 
+.rotation-field{
+  border-left:4px solid #ff9800 !important;
+}
+
+.scale-field{
+  border-left:4px solid #00d26a !important;
+}
 button{
   width:100%;
   padding:10px;
@@ -74,6 +102,12 @@ button{
 
 button:hover{
   background:#006de0;
+}
+
+#nameImage{
+  font-size: 20px;
+  color: #006de0;
+  margin: 5px;
 }
 
 #jsonOutput{
@@ -96,31 +130,6 @@ button:hover{
   <div id="viewer"></div>
 
   <div id="sidebar">
-
-    <div class="group">
-      <label>Upload 6 Cube PNG</label>
-      <input type="file" id="cubeUpload" accept="image/*">
-    </div>
-
-    <div class="group">
-      <label>Surface Type</label>
-
-      <select id="surfaceType">
-        <option value="wall">Wall</option>
-        <option value="floor">Floor</option>
-      </select>
-    </div>
-
-    <div class="group">
-      <label>Surface Width (mm)</label>
-      <input type="number" id="surfaceWidth" value="4600">
-    </div>
-
-    <div class="group">
-      <label>Surface Height (mm)</label>
-      <input type="number" id="surfaceHeight" value="3000">
-    </div>
-
     <div class="group">
       <label>Tile Width (mm)</label>
       <input type="number" id="tileWidth" value="1200">
@@ -135,52 +144,96 @@ button:hover{
       <label>Grout Size</label>
       <input type="number" step="0.001" id="groutSize" value="0.01">
     </div>
+    <div class="group">
+      <label>Decimal Precision</label>
 
+      <select id="decimalPrecision">
+        <option value="0">0</option>
+        <option value="1">0.1</option>
+        <option value="2" selected>0.01</option>
+        <option value="3">0.001</option>
+        <option value="4">0.0001</option>
+      </select>
+    </div>
+    <div class="group">
+    <label>Cube Opacity</label>
+      <input
+        type="range"
+        id="cubeOpacity"
+        min="0"
+        max="1"
+        step="0.1"
+        value="1"
+      >
+    </div>
     <hr style="margin:15px 0;border-color:#333;">
+    <div class="group">
+      <label>Upload 6 Cube PNG</label>
+      <input type="file" id="cubeUpload" accept="image/*">
+      <label id="nameImage"></label>
+    </div>
+
+    <div class="group">
+      <label>Surface Type</label>
+
+      <select id="surfaceType">
+        <option value="wall">Wall</option>
+        <option value="floor">Floor</option>
+      </select>
+    </div>
+     <div class="group">
+      <label>Surface Width (mm)</label>
+      <input class="surface-field"  type="number" id="surfaceWidth" value="4600">
+    </div>
+
+    <div class="group">
+      <label>Surface Height (mm)</label>
+      <input class="surface-field"  type="number" id="surfaceHeight" value="3000">
+    </div>
 
     <div class="group">
       <label>Position X</label>
-      <input type="number" step="0.01" id="posX" value="0">
+      <input class="position-field" type="number" step="0.01" id="posX" value="0">
     </div>
 
     <div class="group">
       <label>Position Y</label>
-      <input type="number" step="0.01" id="posY" value="-9">
+      <input class="position-field" type="number" step="0.01" id="posY" value="-9">
     </div>
 
     <div class="group">
       <label>Position Z</label>
-      <input type="number" step="0.01" id="posZ" value="0">
+      <input class="position-field" type="number" step="0.01" id="posZ" value="0">
     </div>
 
     <div class="group">
       <label>Rotation X (Radians)</label>
-      <input type="number" step="0.001" id="rotX" value="0">
+      <input class="rotation-field" type="number" step="0.001" id="rotX" value="0">
     </div>
 
     <div class="group">
       <label>Rotation Y (Radians)</label>
-      <input type="number" step="0.001" id="rotY" value="3.14159">
+      <input class="rotation-field" type="number" step="0.001" id="rotY" value="3.14159">
     </div>
 
     <div class="group">
       <label>Rotation Z (Radians)</label>
-      <input type="number" step="0.001" id="rotZ" value="0">
+      <input class="rotation-field" type="number" step="0.001" id="rotZ" value="0">
     </div>
 
     <div class="group">
       <label>Scale X</label>
-      <input type="number" step="0.1" id="scaleX" value="9">
+      <input class="scale-field" type="number" step="0.1" id="scaleX" value="9">
     </div>
 
     <div class="group">
       <label>Scale Y</label>
-      <input type="number" step="0.1" id="scaleY" value="9">
+      <input class="scale-field" type="number" step="0.1" id="scaleY" value="9">
     </div>
 
     <div class="group">
       <label>Scale Z</label>
-      <input type="number" step="0.1" id="scaleZ" value="9">
+      <input class="scale-field" type="number" step="0.1" id="scaleZ" value="9">
     </div>
 
     <button id="updateBtn">
@@ -210,7 +263,7 @@ const scene =
   new THREE.Scene();
 
 scene.background =
-  new THREE.Color(0x000000);
+  new THREE.Color(0xffffff);
 
 const camera =
   new THREE.PerspectiveCamera(
@@ -386,7 +439,7 @@ function createCubeEnvironment(url){
         return new THREE.MeshBasicMaterial({
           map:tex,
           transparent:true,
-          opacity:1,
+          opacity:Number($('#cubeOpacity').val()),
           side:THREE.BackSide
         });
 
@@ -658,22 +711,67 @@ JSON.stringify({
 
   );
 }
+function updateCubeOpacity(){
 
+  if(!cubeMesh) return;
+
+  const opacity =
+    Number($('#cubeOpacity').val());
+
+  cubeMesh.material.forEach((mat)=>{
+    mat.opacity = opacity;
+    mat.needsUpdate = true;
+  });
+}
+function getStepValue(){
+
+  const precision =
+    Number($('#decimalPrecision').val());
+
+  return Number(
+    (1 / Math.pow(10, precision))
+    .toFixed(precision)
+  );
+}
+function updateInputSteps(){
+
+  const step = getStepValue();
+
+  $('#posX, #posY, #posZ').attr(
+    'step',
+    step
+  );
+
+  $('#rotX, #rotY, #rotZ').attr(
+    'step',
+    step
+  );
+
+  $('#scaleX, #scaleY, #scaleZ').attr(
+    'step',
+    step
+  );
+}
 createWall();
 
 // =====================================================
 // EVENTS
 // =====================================================
+$('#decimalPrecision').on(
+  'change',
+  function(){
 
+    updateInputSteps();
+  }
+);
 $('#cubeUpload').on(
   'change',
   function(e){
 
     const file =
       e.target.files[0];
-
     if(!file) return;
-
+    $("#nameImage").text(file.name)
     const url =
       URL.createObjectURL(file);
 
@@ -724,7 +822,12 @@ $('input, select').on(
     }
   }
 );
-
+$('#cubeOpacity').on(
+  'input change',
+  function(){
+    updateCubeOpacity();
+  }
+);
 // =====================================================
 // RENDER
 // =====================================================
