@@ -443,9 +443,25 @@ function createCubeEnvironment(url){
 
   image.src = url;
 }
+let surfaceColorIndex = 0;
+const surfaceColors = [
 
+  // 0xff0000,
+  0x00ff00,
+  0x0000ff,
+  0xff00ff,
+  0x00ffff,
+  0xff8800,
+  0x888888
+
+];
 function createWall(){
-
+  const surfaceColor =
+  surfaceColors[
+    surfaceColorIndex %
+    surfaceColors.length
+  ];
+  surfaceColorIndex++;
   const surfaceType =
     $('#surfaceType').val();
 
@@ -500,15 +516,15 @@ function createWall(){
       ),
 
       new THREE.MeshBasicMaterial({
-        color:0x00ffcc,
+        color:0x222222, //background base (grout also called)
         transparent:true,
-        opacity:0.3,
+        opacity:0.35,
         side:THREE.DoubleSide
       })
 
     );
 
-  groutPlane.position.z = -0.002;
+  groutPlane.position.z = -0.0025;
 
   tileGrid.add(groutPlane);
 
@@ -540,7 +556,7 @@ function createWall(){
           ),
 
           new THREE.MeshBasicMaterial({
-            color:0xff0000,
+            color:surfaceColor,
             transparent:true,
             opacity:0.9,
             side:THREE.DoubleSide
