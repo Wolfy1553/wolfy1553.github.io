@@ -504,7 +504,8 @@ function createWall(){
     new THREE.Group();
 
   tileGrid.userData = {
-    type:surfaceType
+    type:surfaceType,
+    originalColor:surfaceColor
   };
 
   const groutPlane =
@@ -638,7 +639,13 @@ function loadSurfaceValues(){
 
   const wallMesh =
     surfaces[activeSurfaceIndex];
-
+  wallMesh.traverse((child)=>{
+    if(child.material){
+      child.material.color.set(
+        0xff0000
+      );
+    }
+  });
   $('#posX').val(wallMesh.position.x);
   $('#posY').val(wallMesh.position.y);
   $('#posZ').val(wallMesh.position.z);
@@ -672,6 +679,8 @@ function refreshSurfaceList(){
 
     div.on('click',function(){
 
+      updateColorBeforeChnage(activeSurfaceIndex);
+
       activeSurfaceIndex = index;
 
       refreshSurfaceList();
@@ -682,7 +691,30 @@ function refreshSurfaceList(){
     $('#surfaceList').append(div);
   });
 }
+function updateColorBeforeChnage(activeSurfaceIndex){
 
+  if(activeSurfaceIndex === -1)
+    return;
+
+  const wallMesh =
+    surfaces[activeSurfaceIndex];
+
+  const originalColor =
+    wallMesh.userData.originalColor;
+
+  wallMesh.traverse((child)=>{
+
+    if(child.material){
+
+      child.material.color.set(
+        originalColor
+      );
+
+    }
+
+  });
+
+}
 function deleteSurface(){
 
   if(activeSurfaceIndex === -1)
