@@ -170,11 +170,11 @@ button:hover{
       <label>Decimal Precision</label>
 
       <select id="decimalPrecision">
-        <option value="0">0</option>
-        <option value="1">0.1</option>
-        <option value="2" selected>0.01</option>
-        <option value="3">0.001</option>
-        <option value="4">0.0001</option>
+        <option value="1">1</option>
+        <option value="0.1">0.1</option>
+        <option value="0.01" selected>0.01</option>
+        <option value="0.001">0.001</option>
+        <option value="0.0001">0.0001</option>
       </select>
     </div>
 
@@ -793,7 +793,32 @@ function updateCubeOpacity(){
 
   });
 }
+function getStepValue(){
 
+  return Number(
+    $('#decimalPrecision').val()
+  );
+}
+
+function updateInputSteps(){
+
+  const step = getStepValue();
+
+  $('#posX, #posY, #posZ').attr(
+    'step',
+    step
+  );
+
+  $('#rotX, #rotY, #rotZ').attr(
+    'step',
+    step
+  );
+
+  $('#scaleX, #scaleY, #scaleZ').attr(
+    'step',
+    step
+  );
+}
 function animate(){
 
   requestAnimationFrame(animate);
@@ -802,9 +827,16 @@ function animate(){
 
   renderer.render(scene,camera);
 }
-
+updateInputSteps();
 animate();
+$('#decimalPrecision').on(
+  'change',
+  function(){
 
+    updateInputSteps();
+
+  }
+);
 $('#cubeUpload').on(
   'change',
   function(e){
@@ -884,9 +916,7 @@ $('#surfaceWidth,\
     activeSurfaceIndex,
     1
   );
-
   createWall();
-
   const newSurface =
     surfaces[activeSurfaceIndex];
 
