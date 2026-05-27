@@ -1085,6 +1085,11 @@ function loadRoomData(roomData){
   refreshSurfaceList();
 
 }
+window.opener.postMessage({
+
+  type:'TOOL_READY'
+
+}, 'https://admin.wolfynext.com');
 window.addEventListener(
   'message',
   function(event){
