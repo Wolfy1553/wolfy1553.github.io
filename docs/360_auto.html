@@ -941,6 +941,15 @@ $('#saveCoordinateBtn').on(
   'click',
   function(){
 
+    const isConfirm =
+      confirm(
+        'Are you sure you want to save coordinates?'
+      );
+
+    if(!isConfirm){
+      return;
+    }
+
     const roomData =
       JSON.parse(
         $('#jsonOutput').text()
@@ -1085,11 +1094,7 @@ function loadRoomData(roomData){
   refreshSurfaceList();
 
 }
-window.opener.postMessage({
 
-  type:'TOOL_READY'
-
-}, 'https://admin.wolfynext.com');
 window.addEventListener(
   'message',
   function(event){
