@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>360 Multi Surface Coordinate Tool</title>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:Arial;
+}
+
+body{
+  overflow:hidden;
+  background:#111;
+  color:#fff;
+}
+
+#app{
+  display:flex;
+  width:100vw;
+  height:100vh;
+}
+
+#viewer{
+  width:calc(100% - 280px);
+  height:100%;
+  background:#fff;
+}
+
+#sidebar{
+  width:280px;
+  min-width:280px;
+  background:#F5F5F5;
+  padding:14px;
+  overflow-y:auto;
+  border-left:1px solid #333;
+}
+
+.group{
+  margin-bottom:10px;
+}
+
+.group label{
+  display:block;
+  margin-bottom:4px;
+  font-size:13px;
+  color:#262626;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+
+.group input,
+.group select{
+  width:100%;
+  height:38px;
+  padding:0 12px;
+  border-radius:8px;
+  border:1px solid #2f2f2f;
+  background:#ffffff;
+  color:#000000;
+  font-size:18px;
+  font-weight:700;
+}
+
+.surface-field{
+  border-left:4px solid #ff0044 !important;
+}
+
+.position-field{
+  border-left:4px solid #00b7ff !important;
+}
+
+.rotation-field{
+  border-left:4px solid #ff9800 !important;
+}
+
+.scale-field{
+  border-left:4px solid #00d26a !important;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+  border:none;
+  border-radius:6px;
+  background:#0b84ff;
+  color:#fff;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:bold;
+}
+
+button:hover{
+  background:#006de0;
+}
+
+.surface-item{
+  padding:10px;
+  background:#fff;
+  border:2px solid #ddd;
+  border-radius:8px;
+  margin-bottom:8px;
+  cursor:pointer;
+  color:#111;
+  font-size:13px;
+  font-weight:bold;
+}
+
+.surface-item.active{
+  border-color:#0b84ff;
+  background:#e9f3ff;
+}
+
+#surfaceList{
+  margin-top:10px;
+}
+
+#nameImage{
+  font-size:16px;
+  color:#006de0;
+  margin-top:6px;
+  display:block;
+}
+
+#jsonOutput{
+  margin-top:20px;
+  background:#111;
+  padding:10px;
+  border-radius:4px;
+  color:#00ff90;
+  font-size:11px;
+  white-space:pre-wrap;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+  <div id="viewer"></div>
+
+  <div id="sidebar">
+
+    <div class="group">
+      <label>Tile Width (mm)</label>
+      <input type="number" id="tileWidth" value="1200">
+    </div>
+
+    <div class="group">
+      <label>Tile Height (mm)</label>
+      <input type="number" id="tileHeight" value="600">
+    </div>
+
+    <div class="group">
+      <label>Grout Size</label>
+      <input type="number" step="0.001" id="groutSize" value="0.01">
+    </div>
+
+    <div class="group">
+      <label>Decimal Precision</label>
+
+      <select id="decimalPrecision">
+        <option value="1">1</option>
+        <option value="0.1">0.1</option>
+        <option value="0.01" selected>0.01</option>
+        <option value="0.001">0.001</option>
+        <option value="0.0001">0.0001</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <label>Cube Opacity</label>
+
+      <input
+        type="range"
+        id="cubeOpacity"
+        min="0"
+        max="1"
+        step="0.1"
+        value="1"
+      >
+    </div>
+
+    <hr style="margin:15px 0;">
+
+    <div class="group">
+      <label>Upload 6 Cube PNG</label>
+      <input type="file" id="cubeUpload" accept="image/*">
+      <label id="nameImage"></label>
+    </div>
+
+    <div class="group">
+      <label>Surface Type</label>
+
+      <select id="surfaceType">
+        <option value="wall">Wall</option>
+        <option value="floor">Floor</option>
+      </select>
+    </div>
+
+    <div class="group">
+      <label>Surface Width (mm)</label>
+      <input class="surface-field" type="number" id="surfaceWidth" value="4600">
+    </div>
+
+    <div class="group">
+      <label>Surface Height (mm)</label>
+      <input class="surface-field" type="number" id="surfaceHeight" value="3000">
+    </div>
+
+    <div class="group">
+      <label>Position X</label>
+      <input class="position-field" type="number" step="0.01" id="posX" value="0">
+    </div>
+
+    <div class="group">
+      <label>Position Y</label>
+      <input class="position-field" type="number" step="0.01" id="posY" value="0">
+    </div>
+
+    <div class="group">
+      <label>Position Z</label>
+      <input class="position-field" type="number" step="0.01" id="posZ" value="0">
+    </div>
+
+    <div class="group">
+      <label>Rotation X</label>
+      <input class="rotation-field" type="number" step="0.001" id="rotX" value="0">
+    </div>
+
+    <div class="group">
+      <label>Rotation Y</label>
+      <input class="rotation-field" type="number" step="0.001" id="rotY" value="0">
+    </div>
+
+    <div class="group">
+      <label>Rotation Z</label>
+      <input class="rotation-field" type="number" step="0.001" id="rotZ" value="0">
+    </div>
+
+    <div class="group">
+      <label>Scale X</label>
+      <input class="scale-field" type="number" step="0.1" id="scaleX" value="1">
+    </div>
+
+    <div class="group">
+      <label>Scale Y</label>
+      <input class="scale-field" type="number" step="0.1" id="scaleY" value="1">
+    </div>
+
+    <div class="group">
+      <label>Scale Z</label>
+      <input class="scale-field" type="number" step="0.1" id="scaleZ" value="1">
+    </div>
+
+    <button id="addSurfaceBtn">
+      Add Surface
+    </button>
+
+    <button id="deleteBtn">
+      Delete Active Surface
+    </button>
+
+    <button id="copyBtn">
+      Copy JSON
+    </button>
+    <button id="saveCoordinateBtn">
+      Save Coordinate
+    </button>
+    <div id="surfaceList"></div>
+
+    <div id="jsonOutput"></div>
+
+  </div>
+
+</div>
+
+<script src="jquery-3.6.0.min.js"></script>
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+
+<script>
+
+const viewer =
+  document.getElementById('viewer');
+
+const scene =
+  new THREE.Scene();
+
+scene.background =
+  new THREE.Color(0xffffff);
+
+const camera =
+  new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+
+camera.position.set(0,0,0.1);
+
+const renderer =
+  new THREE.WebGLRenderer({
+    antialias:true
+  });
+
+renderer.setPixelRatio(
+  window.devicePixelRatio
+);
+
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+viewer.appendChild(
+  renderer.domElement
+);
+
+const controls =
+  new THREE.OrbitControls(
+    camera,
+    renderer.domElement
+  );
+
+controls.enableZoom = false;
+controls.enablePan = false;
+controls.rotateSpeed = -0.5;
+controls.enableDamping = true;
+
+scene.add(
+  new THREE.AmbientLight(
+    0xffffff,
+    0.7
+  )
+);
+
+const light =
+  new THREE.DirectionalLight(
+    0xffffff,
+    1
+  );
+
+light.position.set(10,10,10);
+
+scene.add(light);
+
+let cubeMesh = null;
+let currentItemId = '';
+
+let surfaces = [];
+
+let activeSurfaceIndex = -1;
+
+function createCubeEnvironment(url){
+
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.onload = ()=>{
+    
+    const faceSize = image.height;
+
+    const faceMap = [
+
+      { x: 0, y: 0 },
+      { x: faceSize, y: 0 },
+      { x: faceSize * 2, y: 0 },
+      { x: faceSize * 3, y: 0 },
+      { x: faceSize * 4, y: 0 },
+      { x: faceSize * 5, y: 0 },
+
+    ];
+
+    const textures = [];
+
+    for(let i=0;i<6;i++){
+
+      const canvas =
+        document.createElement('canvas');
+
+      canvas.width = faceSize;
+      canvas.height = faceSize;
+
+      const ctx =
+        canvas.getContext('2d');
+
+      ctx.drawImage(
+        image,
+        faceMap[i].x,
+        faceMap[i].y,
+        faceSize,
+        faceSize,
+        0,
+        0,
+        faceSize,
+        faceSize
+      );
+
+      const texture =
+        new THREE.CanvasTexture(canvas);
+
+      textures.push(texture);
+    }
+
+    if(cubeMesh){
+      scene.remove(cubeMesh);
+    }
+
+    cubeMesh =
+      new THREE.Mesh(
+
+        new THREE.BoxGeometry(
+          20,
+          20,
+          20
+        ),
+
+        textures.map((tex)=>{
+
+          return new THREE.MeshBasicMaterial({
+            map:tex,
+            side:THREE.BackSide,
+            transparent:true,
+            opacity:Number($('#cubeOpacity').val())
+          });
+
+        })
+
+      );
+
+    cubeMesh.scale.x = -1;
+
+    scene.add(cubeMesh);
+  };
+
+  image.src = url;
+}
+let surfaceColorIndex = 0;
+const surfaceColors = [
+
+  // 0xff0000,
+  0x00ff00,
+  0x0000ff,
+  0xff00ff,
+  0x00ffff,
+  0xff8800,
+  0x888888
+
+];
+function createWall(){
+  const surfaceColor =
+  surfaceColors[
+    surfaceColorIndex %
+    surfaceColors.length
+  ];
+  surfaceColorIndex++;
+  const surfaceType =
+    $('#surfaceType').val();
+
+  const surfaceWidth =
+    Number($('#surfaceWidth').val());
+
+  const surfaceHeight =
+    Number($('#surfaceHeight').val());
+
+  const tileWidth =
+    Number($('#tileWidth').val());
+
+  const tileHeight =
+    Number($('#tileHeight').val());
+
+  const groutSize =
+    Number($('#groutSize').val());
+
+  const WORLD_SCALE = 0.001;
+
+  const sceneWidth =
+    surfaceWidth * WORLD_SCALE;
+
+  const sceneHeight =
+    surfaceHeight * WORLD_SCALE;
+
+  const tileWidth3D =
+    tileWidth * WORLD_SCALE;
+
+  const tileHeight3D =
+    tileHeight * WORLD_SCALE;
+
+  const tileCountX =
+    Math.ceil(surfaceWidth / tileWidth);
+
+  const tileCountY =
+    Math.ceil(surfaceHeight / tileHeight);
+
+  const tileGrid =
+    new THREE.Group();
+
+  tileGrid.userData = {
+    type:surfaceType,
+    originalColor:surfaceColor,
+    width:surfaceWidth,
+    height:surfaceHeight,
+    tileWidth:tileWidth,
+    tileHeight:tileHeight,
+    groutSize:groutSize
+  };
+
+  const groutPlane =
+    new THREE.Mesh(
+
+      new THREE.PlaneGeometry(
+        sceneWidth,
+        sceneHeight
+      ),
+
+      new THREE.MeshBasicMaterial({
+        color:0x222222, //background base (grout also called)
+        transparent:true,
+        opacity:0.35,
+        side:THREE.DoubleSide
+      })
+
+    );
+
+  groutPlane.position.z = -0.0025;
+
+  tileGrid.add(groutPlane);
+
+  const outline =
+    new THREE.LineSegments(
+
+      new THREE.EdgesGeometry(
+        groutPlane.geometry
+      ),
+
+      new THREE.LineBasicMaterial({
+        color:0xffff00
+      })
+
+    );
+
+  tileGrid.add(outline);
+
+  for(let row=0; row<tileCountY; row++){
+
+    for(let col=0; col<tileCountX; col++){
+
+      const tile =
+        new THREE.Mesh(
+
+          new THREE.PlaneGeometry(
+            tileWidth3D,
+            tileHeight3D
+          ),
+
+          new THREE.MeshBasicMaterial({
+            color:surfaceColor,
+            transparent:true,
+            opacity:0.9,
+            side:THREE.DoubleSide
+          })
+
+        );
+
+      tile.position.x =
+        col * (tileWidth3D + groutSize)
+        - sceneWidth / 2
+        + tileWidth3D / 2;
+
+      tile.position.y =
+        row * (tileHeight3D + groutSize)
+        - sceneHeight / 2
+        + tileHeight3D / 2;
+
+      tileGrid.add(tile);
+    }
+  }
+
+  if(surfaceType === 'floor'){
+
+    tileGrid.rotation.x =
+      -Math.PI / 2;
+  }
+
+  scene.add(tileGrid);
+
+  surfaces.push(tileGrid);
+
+  activeSurfaceIndex =
+    surfaces.length - 1;
+
+  refreshSurfaceList();
+
+  updateWall();
+}
+
+function updateWall(){
+
+  if(activeSurfaceIndex === -1)
+    return;
+
+  const wallMesh =
+    surfaces[activeSurfaceIndex];
+
+  wallMesh.position.set(
+
+    Number($('#posX').val()),
+    Number($('#posY').val()),
+    Number($('#posZ').val())
+
+  );
+
+  wallMesh.rotation.set(
+
+    Number($('#rotX').val()),
+    Number($('#rotY').val()),
+    Number($('#rotZ').val())
+
+  );
+
+  wallMesh.scale.set(
+
+    Number($('#scaleX').val()),
+    Number($('#scaleY').val()),
+    Number($('#scaleZ').val())
+
+  );
+
+  updateJSON();
+}
+
+function loadSurfaceValues(){
+
+  if(activeSurfaceIndex === -1)
+    return;
+
+  const wallMesh =
+    surfaces[activeSurfaceIndex];
+  wallMesh.traverse((child)=>{
+    if(child.material){
+      child.material.color.set(
+        0xff0000
+      );
+    }
+  });
+  $('#posX').val(wallMesh.position.x);
+  $('#posY').val(wallMesh.position.y);
+  $('#posZ').val(wallMesh.position.z);
+
+  $('#rotX').val(wallMesh.rotation.x);
+  $('#rotY').val(wallMesh.rotation.y);
+  $('#rotZ').val(wallMesh.rotation.z);
+
+  $('#scaleX').val(wallMesh.scale.x);
+  $('#scaleY').val(wallMesh.scale.y);
+  $('#scaleZ').val(wallMesh.scale.z);
+  $('#surfaceWidth').val(
+    wallMesh.userData.width
+  );
+
+  $('#surfaceHeight').val(
+    wallMesh.userData.height
+  );
+
+  $('#tileWidth').val(
+    wallMesh.userData.tileWidth
+  );
+
+  $('#tileHeight').val(
+    wallMesh.userData.tileHeight
+  );
+
+  $('#groutSize').val(
+    wallMesh.userData.groutSize
+  );
+
+  $('#surfaceType').val(
+    wallMesh.userData.type
+  );
+  updateJSON();
+}
+
+function refreshSurfaceList(){
+
+  $('#surfaceList').html('');
+
+  surfaces.forEach((surface,index)=>{
+
+    const div =
+      $(`
+        <div
+          class="surface-item ${index === activeSurfaceIndex ? 'active' : ''}"
+        >
+          Surface ${index + 1}
+          (${surface.userData.type})
+        </div>
+      `);
+
+    div.on('click',function(){
+
+      updateColorBeforeChnage(activeSurfaceIndex);
+
+      activeSurfaceIndex = index;
+
+      refreshSurfaceList();
+
+      loadSurfaceValues();
+    });
+
+    $('#surfaceList').append(div);
+  });
+}
+function updateColorBeforeChnage(activeSurfaceIndex){
+
+  if(activeSurfaceIndex === -1)
+    return;
+
+  const wallMesh =
+    surfaces[activeSurfaceIndex];
+
+  const originalColor =
+    wallMesh.userData.originalColor;
+
+  wallMesh.traverse((child)=>{
+
+    if(child.material){
+
+      child.material.color.set(
+        originalColor
+      );
+
+    }
+
+  });
+
+}
+function deleteSurface(){
+
+  if(activeSurfaceIndex === -1)
+    return;
+
+  scene.remove(
+    surfaces[activeSurfaceIndex]
+  );
+
+  surfaces.splice(
+    activeSurfaceIndex,
+    1
+  );
+
+  if(surfaces.length){
+
+    activeSurfaceIndex = 0;
+
+  }else{
+
+    activeSurfaceIndex = -1;
+  }
+
+  refreshSurfaceList();
+
+  loadSurfaceValues();
+}
+
+function updateJSON(){
+
+  const roomData =
+    surfaces.map((surface)=>{
+
+      return {
+
+        isWall:
+          surface.userData.type === 'wall',
+
+        roomCoordinate:[
+
+          {
+
+            position:{
+              x:surface.position.x,
+              y:surface.position.y,
+              z:surface.position.z
+            },
+
+            rotation:{
+              x:surface.rotation.x,
+              y:surface.rotation.y,
+              z:surface.rotation.z
+            },
+
+            scale:{
+              x:surface.scale.x,
+              y:surface.scale.y,
+              z:surface.scale.z
+            },
+
+            width:
+              surface.userData.width,
+
+            height:
+              surface.userData.height,
+
+            tileWidth:
+              surface.userData.tileWidth,
+
+            tileHeight:
+              surface.userData.tileHeight,
+
+            groutSize:
+              surface.userData.groutSize
+
+          }
+
+        ]
+
+      };
+
+    });
+
+  $('#jsonOutput').text(
+    JSON.stringify(
+      roomData,
+      null,
+      2
+    )
+  );
+
+}
+
+function updateCubeOpacity(){
+
+  if(!cubeMesh)
+    return;
+
+  cubeMesh.material.forEach((mat)=>{
+
+    mat.opacity =
+      Number($('#cubeOpacity').val());
+
+  });
+}
+function getStepValue(){
+
+  return Number(
+    $('#decimalPrecision').val()
+  );
+}
+
+function updateInputSteps(){
+
+  const step = getStepValue();
+
+  $('#posX, #posY, #posZ').attr(
+    'step',
+    step
+  );
+
+  $('#rotX, #rotY, #rotZ').attr(
+    'step',
+    step
+  );
+
+  $('#scaleX, #scaleY, #scaleZ').attr(
+    'step',
+    step
+  );
+}
+function animate(){
+
+  requestAnimationFrame(animate);
+
+  controls.update();
+
+  renderer.render(scene,camera);
+}
+updateInputSteps();
+animate();
+$('#decimalPrecision').on(
+  'change',
+  function(){
+
+    updateInputSteps();
+
+  }
+);
+$('#cubeUpload').on(
+  'change',
+  function(e){
+
+    const file =
+      e.target.files[0];
+
+    if(!file) return;
+
+    $('#nameImage').text(file.name);
+
+    createCubeEnvironment(
+      URL.createObjectURL(file)
+    );
+  }
+);
+
+$('#cubeOpacity').on(
+  'input',
+  updateCubeOpacity
+);
+
+$('#addSurfaceBtn').on(
+  'click',
+  createWall
+);
+
+$('#deleteBtn').on(
+  'click',
+  deleteSurface
+);
+
+$('#copyBtn').on(
+  'click',
+  function(){
+
+    navigator.clipboard.writeText(
+      $('#jsonOutput').text()
+    );
+
+    alert('Copied');
+  }
+);
+$('#saveCoordinateBtn').on(
+  'click',
+  function(){
+
+    const roomData =
+      JSON.parse(
+        $('#jsonOutput').text()
+      );
+
+    window.opener.postMessage({
+
+      type:'SAVE_ROOM_DATA',
+
+      roomData:roomData,
+
+      itemId:currentItemId
+
+    }, 'https://admin.wolfynext.com');
+
+    alert('Coordinate Saved');
+
+  }
+);
+$('#posX,#posY,#posZ,\
+#rotX,#rotY,#rotZ,\
+#scaleX,#scaleY,#scaleZ')
+.on('input',function(){
+
+  updateWall();
+});
+$('#surfaceWidth,\
+#surfaceHeight,\
+#tileWidth,\
+#tileHeight,\
+#groutSize,\
+#surfaceType')
+.on('change',function(){
+
+  if(activeSurfaceIndex === -1)
+    return;
+
+  const oldSurface =
+    surfaces[activeSurfaceIndex];
+
+  const oldPosition =
+    oldSurface.position.clone();
+
+  const oldRotation =
+    oldSurface.rotation.clone();
+
+  const oldScale =
+    oldSurface.scale.clone();
+
+  scene.remove(oldSurface);
+
+  surfaces.splice(
+    activeSurfaceIndex,
+    1
+  );
+  createWall();
+  const newSurface =
+    surfaces[activeSurfaceIndex];
+
+  newSurface.position.copy(
+    oldPosition
+  );
+
+  newSurface.rotation.copy(
+    oldRotation
+  );
+
+  newSurface.scale.copy(
+    oldScale
+  );
+
+  updateJSON();
+});
+function loadRoomData(roomData){
+
+  surfaces.forEach((surface)=>{
+    scene.remove(surface);
+  });
+
+  surfaces = [];
+
+  if(!roomData)
+    return;
+
+  roomData.forEach((room)=>{
+
+    room.roomCoordinate.forEach((coord)=>{
+
+      $('#surfaceType').val(
+        room.isWall ? 'wall' : 'floor'
+      );
+
+      $('#surfaceWidth').val(
+        coord.width || 4600
+      );
+
+      $('#surfaceHeight').val(
+        coord.height || 3000
+      );
+
+      $('#tileWidth').val(
+        coord.tileWidth || 1200
+      );
+
+      $('#tileHeight').val(
+        coord.tileHeight || 600
+      );
+
+      $('#groutSize').val(
+        coord.groutSize || 0.01
+      );
+
+      createWall();
+
+      const wall =
+        surfaces[
+          surfaces.length - 1
+        ];
+
+      wall.position.set(
+        coord.position.x,
+        coord.position.y,
+        coord.position.z
+      );
+
+      wall.rotation.set(
+        coord.rotation.x,
+        coord.rotation.y,
+        coord.rotation.z
+      );
+
+      wall.scale.set(
+        coord.scale.x,
+        coord.scale.y,
+        coord.scale.z
+      );
+
+    });
+
+  });
+
+  refreshSurfaceList();
+
+}
+window.addEventListener(
+  'message',
+  function(event){
+
+    const message =
+      event.data;
+
+    if(
+      message.type ===
+      'LOAD_360_DATA'
+    ){
+
+      const data =
+        message.data;
+
+      currentItemId =
+        data._id;
+
+      console.log(data);
+
+      if(data.File){
+
+        createCubeEnvironment(
+          data.File
+        );
+
+      }
+
+      if(data.RoomData){
+
+        loadRoomData(
+          data.RoomData
+        );
+
+      }
+
+    }
+
+  }
+);
+window.addEventListener(
+  'resize',
+  ()=>{
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
+
+</script>
+
+</body>
+</html>
