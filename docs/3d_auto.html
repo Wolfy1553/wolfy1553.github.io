@@ -861,6 +861,7 @@ function createAutoSurface(surface){
         // Also load it into the target surface as tile image
             if (tileGenTargetSurface !== null && window._surfaces) {
                 const img = new Image();
+                img.crossOrigin = "anonymous";
                 img.onload = () => {
                     const surf = window._surfaces[tileGenTargetSurface];
                     if (surf) {
@@ -1232,6 +1233,7 @@ function createAutoSurface(surface){
                         const reader = new FileReader();
                         reader.onload = function(ev) {
                             const img = new Image();
+                            img.crossOrigin = "anonymous";
                             img.onload = () => { surf.tileImageEl = img; loadTileMesh(surf, img); };
                             img.src = ev.target.result;
                         };
@@ -1318,6 +1320,7 @@ function createAutoSurface(surface){
                         const reader = new FileReader();
                         reader.onload = function(ev) {
                             const img = new Image();
+                            img.crossOrigin = "anonymous";
                             img.onload = () => {
                                 window._globalMaster.imageEl = img;
                                 // apply to all surfaces
