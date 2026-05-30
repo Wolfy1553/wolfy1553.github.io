@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wolfy Coordinates Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <style>
+        body {
+            margin: 0;
+            overflow: auto;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            display: none;
+        }
+        canvas {
+            display: block;
+            border-radius: 8px;
+            background-color: white;
+            margin-left: 250px;
+            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #content {
+            position: absolute;
+            background: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.15);
+            width: 200px;
+            overflow: auto;
+            left: 9px;
+            top: 9px;
+            height: 100px;
+        }
+        #controls {
+            position: absolute;
+            left: 10px;
+            top: 130px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.15);
+            width: 200px;
+            max-height: calc(100vh - 175px);
+            overflow-y: auto;
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+        #content p { margin: 0; line-height: 1.6; font-size: 12px; }
+        #content button { width: 100%; padding: 5px 0; }
+        #username { font-weight: bold; color: #E66D22; font-size: 15px; }
+        #useremail { color: #7f8c8d; }
+        #logintime { font-style: italic; color: #95a5a6; }
+        .control-group {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .control-group:last-child { border-bottom: none; }
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-row {
+            display: flex;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        .control-row label { width: 30px; font-size: 13px; color: #666; font-weight: bold; }
+        .control-row input, .control-row select {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .control-row input[type="number"] { width: 80px; }
+        button {
+            background: #E66D22;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 5px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #3a5a9f; }
+        .image-selector { margin-top: 10px; }
+        .image-selector label { display: block; margin-bottom: 5px; font-size: 13px; color: #555; }
+        .image-preview {
+            width: 100%;
+            height: 80px;
+            background-color: #eee;
+            margin-top: 5px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 1px dashed #ccc;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-input-button {
+            background: #E66D22;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            width: 100%;
+            text-align: center;
+            display: block;
+        }
+        .file-input-button:hover { background: #3a5a9f; }
+        .file-name { font-size: 12px; margin-top: 5px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #fullscreenToggle {
+            position: absolute;
+            right: 10px;
+            top: 0;
+            z-index: 101;
+            background: #E66D22;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .dimension-control { margin-top: 10px; }
+        .dimension-control input { width: 70px; margin-right: 10px; }
+        #exportData { background: #E66D22; width: 100%; padding: 10px; margin-top: 0; }
+
+        /* ── MULTI SURFACE PANEL ── */
+        #surfacePanel {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .surface-tab-bar {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+        .surface-tab {
+            padding: 6px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: transparent;
+            color: #555;
+            border-radius: 0;
+            margin: 0;
+        }
+        .surface-tab:hover { background: #e8e8e8; color: #333; }
+        .surface-tab.active { background: #E66D22; color: white; }
+        .surface-tab .remove-surface {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 2px;
+            margin: 0;
+        }
+        .surface-tab .remove-surface:hover { color: #ff6b6b; }
+        .surface-tab.active .remove-surface:hover { color: #ffcccc; }
+        #addSurfaceBtn {
+            padding: 6px 10px;
+            background: transparent;
+            color: #E66D22;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 0;
+            margin: 0;
+            line-height: 1;
+        }
+        #addSurfaceBtn:hover { background: #fff3ed; }
+        .surface-body {
+            padding: 8px;
+            background: white;
+        }
+        .surface-name-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .surface-name-row input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .surface-visibility-btn {
+            background: #eee;
+            color: #555;
+            font-size: 11px;
+            padding: 4px 7px;
+            margin: 0;
+        }
+        .surface-visibility-btn.hidden-surface { background: #fde; color: #c00; }
+
+        /* ── TILE GENERATOR BUTTONS ── */
+        .tile-action-buttons {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .tile-action-buttons button {
+            flex: 1;
+            font-size: 11px;
+            padding: 6px 4px;
+            margin: 0;
+        }
+
+        /* ── TILE GENERATOR MODAL ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 5000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: #fff;
+            border-radius: 10px;
+            padding: 24px 28px;
+            width: 380px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+        }
+        .modal-box h2 {
+            margin: 0 0 18px 0;
+            font-size: 18px;
+            color: #E66D22;
+        }
+        .modal-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 8px;
+        }
+        .modal-row label {
+            min-width: 110px;
+            font-size: 13px;
+            color: #444;
+            font-weight: bold;
+        }
+        .modal-row input[type="number"], .modal-row input[type="color"], .modal-row input[type="text"] {
+            flex: 1;
+            padding: 7px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .modal-row input[type="color"] {
+            padding: 2px;
+            height: 34px;
+            width: 50px;
+            flex: none;
+        }
+        .modal-row .color-hex {
+            flex: 1;
+            padding: 7px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-actions button { flex: 1; margin: 0; }
+        .modal-actions .btn-cancel {
+            background: #ccc;
+            color: #333;
+        }
+        .modal-actions .btn-cancel:hover { background: #bbb; }
+        #tilePreviewCanvas {
+            display: block;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 12px 0;
+            width: 100%;
+        }
+        .preview-label {
+            font-size: 12px;
+            color: #888;
+            margin: 0 0 4px 0;
+        }
+
+        /* ── CAMERA MODAL ── */
+        #cameraConfigModal {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+    </style>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-S6HYZJQK2V"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-S6HYZJQK2V');
+    </script>
+    <script src="jquery-3.6.0.min.js"></script>
+    <script src="three.min.js"></script>
+</head>
+<body>
+    <div id="content">
+        <p>Welcome, <span id="username"></span></p>
+        <p>Email: <span id="useremail"></span></p>
+        <p>Login time: <span id="logintime"></span></p>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <div id="controls">
+        <button id="fullscreenToggle">Fullscreen</button>
+
+        <!-- ═══════════════════════════════
+             MASTER IMAGE (global, shared)
+        ═══════════════════════════════ -->
+        <div class="control-group">
+            <h3>Master Image</h3>
+            <div class="file-input-wrapper">
+                <button class="file-input-button">Choose Master Image</button>
+                <input type="file" id="masterImageInput_global" accept="image/*">
+            </div>
+            <div class="file-name" id="masterFileName_global">No file selected</div>
+            <div class="image-preview" id="masterImagePreview_global"></div>
+            <button id="updateMasterImage_global" style="margin-top:8px;width:100%;">Apply Master Image</button>
+        </div>
+
+        <!-- ═══════════════════════════════
+             MULTI-SURFACE SECTION
+        ═══════════════════════════════ -->
+        <div class="control-group">
+            <h3>Surfaces</h3>
+            <div id="surfacePanel">
+                <div class="surface-tab-bar" id="surfaceTabBar">
+                    <!-- tabs injected by JS -->
+                    <button id="addSurfaceBtn" title="Add Surface">+</button>
+                </div>
+                <div class="surface-body" id="surfaceBody">
+                    <!-- active surface controls injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════
+             DECIMAL PRECISION
+        ═══════════════════════════════ -->
+        <div class="control-group">
+            <h3>Decimal Precision</h3>
+            <div class="control-row">
+                <label>Digits:</label>
+                <input type="number" id="decimalPrecision" min="1" max="10" value="4" step="1" style="width:50px;margin-left:15px;">
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════
+             TRANSFORM CONTROLS (active surface)
+        ═══════════════════════════════ -->
+        <div class="control-group">
+            <h3>Position</h3>
+            <div class="control-row"><label>X:</label><input type="number" id="posX" value="0" step="0.0001"></div>
+            <div class="control-row"><label>Y:</label><input type="number" id="posY" value="0" step="0.0001"></div>
+            <div class="control-row"><label>Z:</label><input type="number" id="posZ" value="0" step="0.0001"></div>
+        </div>
+        <div class="control-group">
+            <h3>Rotation</h3>
+            <div class="control-row"><label>X:</label><input type="number" id="rotX" value="0" step="0.0001"></div>
+            <div class="control-row"><label>Y:</label><input type="number" id="rotY" value="0" step="0.0001"></div>
+            <div class="control-row"><label>Z:</label><input type="number" id="rotZ" value="0" step="0.0001"></div>
+        </div>
+        <div class="control-group">
+            <h3>Scale</h3>
+            <div class="control-row"><label>X:</label><input type="number" id="scaleX" value="1" step="0.0001"></div>
+            <div class="control-row"><label>Y:</label><input type="number" id="scaleY" value="1" step="0.0001"></div>
+            <div class="control-row"><label>Z:</label><input type="number" id="scaleZ" value="1" step="0.0001"></div>
+        </div>
+        <div class="control-group">
+            <h3>Opacity</h3>
+            <div class="control-row">
+                <label>Value:</label>
+                <input type="number" id="opacity" value="1" min="0" max="1" step="0.01" style="width:60px;margin-left:10px;">
+            </div>
+        </div>
+
+        <button id="exportData">Export Coordinates</button>
+    </div>
+
+    <!-- ═══════════════════════════════
+         CAMERA CONFIG MODAL
+    ═══════════════════════════════ -->
+    <div id="cameraConfigModal">
+        <div style="background:#fff;padding:20px 30px;border-radius:10px;width:300px;" class="control-group">
+            <h3>Camera Settings</h3>
+            <div class="control-row">
+                <label>FOV:</label>
+                <input id="fovInput" type="number" value="75" step="1" style="width:60px;margin-left:50px;">
+            </div>
+            <div class="control-row">
+                <label>Near:</label>
+                <input id="nearInput" type="number" value="0.1" step="0.1" style="width:60px;margin-left:50px;">
+            </div>
+            <div class="control-row">
+                <label>Far:</label>
+                <input id="farInput" type="number" value="1000" step="10" style="width:60px;margin-left:50px;">
+            </div>
+            <div class="control-row">
+                <label>Camera Z:</label>
+                <input id="cameraZInput" type="number" value="5" step="0.1" style="width:60px;margin-left:50px;">
+            </div>
+            <div class="control-row">
+                <label>Canvas W:</label>
+                <input id="canvasWInput" type="number" value="4000" step="1" style="width:60px;margin-left:50px;">
+            </div>
+            <div class="control-row">
+                <label>Canvas H:</label>
+                <input id="canvasHInput" type="number" value="2667" step="1" style="width:60px;margin-left:50px;">
+            </div>
+            <button id="startThreeJS">Start</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════
+         TILE GENERATOR MODAL
+    ═══════════════════════════════ -->
+    <div class="modal-overlay" id="tileGeneratorModal">
+        <div class="modal-box">
+            <h2>🪟 Create Surface Tile</h2>
+
+            <div class="modal-row">
+                <label>Surface Width (mm):</label>
+                <input type="number" id="tg_surfaceW" value="3600" min="1">
+            </div>
+            <div class="modal-row">
+                <label>Surface Height (mm):</label>
+                <input type="number" id="tg_surfaceH" value="2400" min="1">
+            </div>
+            <div class="modal-row">
+                <label>Tile Width (mm):</label>
+                <input type="number" id="tg_tileW" value="1200" min="1">
+            </div>
+            <div class="modal-row">
+                <label>Tile Height (mm):</label>
+                <input type="number" id="tg_tileH" value="600" min="1">
+            </div>
+            <div class="modal-row">
+                <label>Grout Size (mm):</label>
+                <input type="number" id="tg_groutSize" value="2" min="0" step="0.5">
+            </div>
+            <div class="modal-row">
+                <label>Grout Color:</label>
+                <input type="color" id="tg_groutColorPicker" value="#888888">
+                <input type="text" id="tg_groutColorHex" class="color-hex" value="#888888" maxlength="7" placeholder="#RRGGBB">
+            </div>
+            <div class="modal-row">
+                <label>Tile Color:</label>
+                <input type="color" id="tg_tileColorPicker" value="#e8e0d0">
+                <input type="text" id="tg_tileColorHex" class="color-hex" value="#e8e0d0" maxlength="7" placeholder="#RRGGBB">
+            </div>
+
+            <p class="preview-label">Preview (scaled):</p>
+            <canvas id="tilePreviewCanvas" height="160"></canvas>
+
+            <button id="tg_previewBtn" style="width:100%;margin-bottom:8px;">Update Preview</button>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" id="tg_cancelBtn">Cancel</button>
+                <button id="tg_exportBtn">Export PNG &amp; Use</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════
+         MAIN SCRIPTS
+    ═══════════════════════════════ -->
+    <script>
+       window.addEventListener('message', async function(event) {
+
+            if(event.data.type !== 'LOAD_3D_DATA'){
+                return;
+            }
+
+            const data = event.data.data;
+
+            await load3DScene(data);
+
+        });
+        const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+        if (!isLoggedIn && false) {
+            window.location.href = 'login';
+        } else {
+            document.body.style.display = 'block';
+            document.getElementById('username').textContent = sessionStorage.getItem('name');
+            document.getElementById('useremail').textContent = sessionStorage.getItem('email');
+            document.getElementById('logintime').textContent = sessionStorage.getItem('loginTime');
+        }
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = 'login';
+        }
+    </script>
+
+    <script>
+    // ════════════════════════════════════════════
+    //   TILE GENERATOR LOGIC (standalone, no jQuery)
+    // ════════════════════════════════════════════
+$(document).ready(function () {
+    let tileGenTargetSurface = null; // which surface to apply generated tile to
+async function load3DScene(data){
+
+    // Set camera values
+    $('#canvasWInput').val(data.RoomSize.width);
+    $('#canvasHInput').val(data.RoomSize.height);
+
+    $('#fovInput').val(data.CameraSetting.FOV);
+    $('#nearInput').val(data.CameraSetting.Near);
+    $('#farInput').val(data.CameraSetting.Far);
+    $('#cameraZInput').val(data.CameraSetting.CameraZ);
+
+    // Start ThreeJS
+    $('#startThreeJS').click();
+
+    // Wait for camera initialization
+    const waitForCamera = setInterval(() => {
+        if (!window.camera) {
+            return;
+        }
+
+        clearInterval(waitForCamera);
+        // Clear old surfaces
+        window._surfaces = [];
+
+        // Create surfaces from JSON
+        data.RoomCoordinate.forEach(coord => {
+
+            const surface = makeSurface(coord.name);
+
+            surface.gridWidth = coord.width;
+            surface.gridHeight = coord.height;
+
+            surface.position.set(
+                coord.position.x,
+                coord.position.y,
+                coord.position.z
+            );
+
+            surface.rotation.set(
+                coord.rotation.x,
+                coord.rotation.y,
+                coord.rotation.z
+            );
+
+            surface.scale.set(
+                coord.scale.x,
+                coord.scale.y,
+                coord.scale.z
+            );
+
+            surface.visH =
+                2 * Math.tan((75 * Math.PI) / 360) *
+                window.camera.position.z;
+
+            surface.visW =
+                surface.visH *
+                (surface.gridWidth / surface.gridHeight);
+
+            window._surfaces.push(surface);
+
+        });
+
+        // Select first surface
+        window._activeSurfaceIndex = 0;
+
+        // Build UI
+        window.buildSurfaceUI();
+
+        // Create default tile texture
+        window._surfaces.forEach(surface => {
+            createAutoSurface(surface);
+        });
+
+        // Load master image
+        if(data.Master && data.Master.length){
+
+            const masterImg = new Image();
+
+            masterImg.crossOrigin = 'anonymous';
+
+            masterImg.onload = () => {
+
+                window._globalMaster.imageEl = masterImg;
+
+                window._surfaces.forEach(surface => {
+
+                    window.loadMasterMesh(
+                        surface,
+                        masterImg
+                    );
+
+                });
+
+            };
+
+            masterImg.src = data.Master[0];
+
+        }
+
+    }, 100);
+
+}
+window.load3DScene = load3DScene;
+});
+function makeSurface(name) {
+                return {
+                    name,
+                    visible: true,
+                    tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
+                    tileMesh: null, masterMesh: null,
+                    gridWidth: 3000, gridHeight: 2400,
+                    visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
+                    position: new THREE.Vector3(0,0,0),
+                    rotation: new THREE.Euler(0,0,0),
+                    scale:    new THREE.Vector3(1,1,1),
+                };
+            }
+function createAutoSurface(surface){
+
+    const canvas =
+        document.createElement('canvas');
+
+    canvas.width = 1024;
+    canvas.height = 1024;
+
+    const ctx =
+        canvas.getContext('2d');
+
+    ctx.fillStyle = '#d9d9d9';
+    ctx.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    ctx.strokeStyle = '#999';
+
+    for(let x=0;x<canvas.width;x+=100){
+
+        ctx.beginPath();
+        ctx.moveTo(x,0);
+        ctx.lineTo(x,canvas.height);
+        ctx.stroke();
+
+    }
+
+    for(let y=0;y<canvas.height;y+=100){
+
+        ctx.beginPath();
+        ctx.moveTo(0,y);
+        ctx.lineTo(canvas.width,y);
+        ctx.stroke();
+
+    }
+
+    const img = new Image();
+
+    img.onload = () => {
+
+        surface.tileImageEl = img;
+
+        window.loadTileMesh(
+            surface,
+            img
+        );
+
+    };
+
+    img.src = canvas.toDataURL();
+
+}
+    function renderTilePreview(outputCanvas) {
+        const surfW  = parseFloat(document.getElementById('tg_surfaceW').value) || 3600;
+        const surfH  = parseFloat(document.getElementById('tg_surfaceH').value) || 2400;
+        const tileW  = parseFloat(document.getElementById('tg_tileW').value)  || 600;
+        const tileH  = parseFloat(document.getElementById('tg_tileH').value)  || 300;
+        const grout  = parseFloat(document.getElementById('tg_groutSize').value) || 5;
+        const groutColor = document.getElementById('tg_groutColorHex').value || '#888888';
+        const tileColor  = document.getElementById('tg_tileColorHex').value  || '#e8e0d0';
+
+        // Scale so preview fits inside canvas width
+        const previewW = outputCanvas.width;
+        const scale = previewW / surfW;
+        const previewH = Math.round(surfH * scale);
+        outputCanvas.height = previewH;
+
+        const ctx = outputCanvas.getContext('2d');
+        ctx.clearRect(0, 0, previewW, previewH);
+
+        // grout background
+        ctx.fillStyle = groutColor;
+        ctx.fillRect(0, 0, previewW, previewH);
+
+        const scaledTileW  = tileW  * scale;
+        const scaledTileH  = tileH  * scale;
+        const scaledGrout  = Math.max(0.5, grout * scale);
+
+        const halfGrout = scaledGrout / 2;
+
+        // draw tiles
+        ctx.fillStyle = tileColor;
+        for (let y = 0; y < surfH; y += tileH + grout) {
+            for (let x = 0; x < surfW; x += tileW + grout) {
+                const sx = x * scale + halfGrout;
+                const sy = y * scale + halfGrout;
+                const sw = scaledTileW - scaledGrout;
+                const sh = scaledTileH - scaledGrout;
+                if (sw > 0 && sh > 0) {
+                    ctx.fillRect(sx, sy, sw, sh);
+                }
+            }
+        }
+        return { surfW, surfH, tileW, tileH, grout, groutColor, tileColor };
+    }
+
+    function renderTileFullRes(params) {
+        // Render at full resolution (1px per mm, capped for performance)
+        const { surfW, surfH, tileW, tileH, grout, groutColor, tileColor } = params;
+        const MAX = 4096;
+        const scaleX = Math.min(1, MAX / surfW);
+        const scaleY = Math.min(1, MAX / surfH);
+        const sc = Math.min(scaleX, scaleY);
+
+        const cw = Math.round(surfW * sc);
+        const ch = Math.round(surfH * sc);
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width  = cw;
+        offscreen.height = ch;
+        const ctx = offscreen.getContext('2d');
+
+        ctx.fillStyle = groutColor;
+        ctx.fillRect(0, 0, cw, ch);
+
+        const scaledTileW = tileW * sc;
+        const scaledTileH = tileH * sc;
+        const scaledGrout = Math.max(0.5, grout * sc);
+        const halfGrout   = scaledGrout / 2;
+
+        ctx.fillStyle = tileColor;
+        for (let y = 0; y < surfH; y += tileH + grout) {
+            for (let x = 0; x < surfW; x += tileW + grout) {
+                const sx = x * sc + halfGrout;
+                const sy = y * sc + halfGrout;
+                const sw = scaledTileW - scaledGrout;
+                const sh = scaledTileH - scaledGrout;
+                if (sw > 0 && sh > 0) ctx.fillRect(sx, sy, sw, sh);
+            }
+        }
+        return offscreen;
+    }
+
+    function openTileGenerator(surfaceIndex) {
+        tileGenTargetSurface = surfaceIndex;
+        // Auto-sync Surface Width/Height from this surface's Grid Dimensions
+        if (window._surfaces && window._surfaces[surfaceIndex]) {
+            const surf = window._surfaces[surfaceIndex];
+            document.getElementById('tg_surfaceW').value = surf.gridWidth;
+            document.getElementById('tg_surfaceH').value = surf.gridHeight;
+        }
+        document.getElementById('tileGeneratorModal').classList.add('active');
+        renderTilePreview(document.getElementById('tilePreviewCanvas'));
+    }
+
+    function closeTileGenerator() {
+        document.getElementById('tileGeneratorModal').classList.remove('active');
+    }
+
+    // color pickers ↔ hex inputs sync
+    function syncColorInputs(pickerId, hexId) {
+        const picker = document.getElementById(pickerId);
+        const hex    = document.getElementById(hexId);
+        picker.addEventListener('input', () => { hex.value = picker.value; });
+        hex.addEventListener('input', () => {
+            if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
+        });
+    }
+    syncColorInputs('tg_groutColorPicker', 'tg_groutColorHex');
+    syncColorInputs('tg_tileColorPicker',  'tg_tileColorHex');
+
+    document.getElementById('tg_previewBtn').addEventListener('click', () => {
+        renderTilePreview(document.getElementById('tilePreviewCanvas'));
+    });
+
+    document.getElementById('tg_cancelBtn').addEventListener('click', closeTileGenerator);
+
+    document.getElementById('tg_exportBtn').addEventListener('click', () => {
+        const previewCanvas = document.getElementById('tilePreviewCanvas');
+        const params = renderTilePreview(previewCanvas);
+
+        // generate full-res
+        const fullCanvas = renderTileFullRes(params);
+
+        // download PNG
+        fullCanvas.toBlob(blob => {
+            const url  = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href     = url;
+            link.download = 'tile_surface.png';
+            // link.click();
+            URL.revokeObjectURL(url);
+
+        // Also load it into the target surface as tile image
+            if (tileGenTargetSurface !== null && window._surfaces) {
+                const img = new Image();
+                img.onload = () => {
+                    const surf = window._surfaces[tileGenTargetSurface];
+                    if (surf) {
+                        // sync grid dimensions from tile generator surface size
+                        surf.gridWidth  = params.surfW;
+                        surf.gridHeight = params.surfH;
+                        surf.tileImageFile = blob;
+                        surf.tileImageEl   = img;
+                        surf.tileFileName  = 'tile_surface.png';
+                        // Update sidebar displays
+                        const fnEl = document.getElementById('tileFileName_' + tileGenTargetSurface);
+                        if (fnEl) fnEl.textContent = 'tile_surface.png';
+                        const prevEl = document.getElementById('tileImagePreview_' + tileGenTargetSurface);
+                        if (prevEl) prevEl.style.backgroundImage = 'url(' + url + ')';
+                        const gwEl = document.getElementById('gridWidth_'  + tileGenTargetSurface);
+                        const ghEl = document.getElementById('gridHeight_' + tileGenTargetSurface);
+                        if (gwEl) gwEl.value = surf.gridWidth;
+                        if (ghEl) ghEl.value = surf.gridHeight;
+                        // Reload 3D mesh
+                        loadTileMesh(surf, img);
+                    }
+                };
+                img.src = URL.createObjectURL(blob);
+            }
+        }, 'image/png');
+
+        closeTileGenerator();
+    });
+    </script>
+
+    <script>
+    // ════════════════════════════════════════════
+    //   THREE.JS + MULTI-SURFACE ENGINE
+    // ════════════════════════════════════════════
+    (function($) {
+        $(document).ready(function () {
+
+            // ── SURFACE DATA STORE ──────────────────
+            // Each surface: { name, visible, tileImageFile, tileImageEl, tileFileName,
+            //                 tileMesh, masterMesh, gridWidth, gridHeight,
+            //                 position, rotation, scale, opacity }
+            // Master image is GLOBAL (shared across all surfaces)
+            window._surfaces = [];
+            window._activeSurfaceIndex = 0;
+            window._globalMaster = { file: null, imageEl: null, fileName: 'No file', previewUrl: null, opacity: 1 };
+
+            // start with two default surfaces
+            // window._surfaces.push(makeSurface('Floor'));
+            // window._surfaces.push(makeSurface('Wall'));
+
+            window._surfaces = [];
+            // ── THREE.JS INIT ────────────────────────
+            let scene, camera, renderer;
+            let decimalPrecision = 4;
+
+            $('#startThreeJS').on('click', function () {
+                const defaultFOV     = parseFloat($('#fovInput').val()) || 75;
+                const defaultNear    = parseFloat($('#nearInput').val()) || 0.1;
+                const defaultFar     = parseFloat($('#farInput').val()) || 1000;
+                const defaultCameraZ = parseFloat($('#cameraZInput').val()) || 5;
+                const defaultCanvasW = parseFloat($('#canvasWInput').val()) || 4000;
+                const defaultCanvasH = parseFloat($('#canvasHInput').val()) || 2667;
+
+                $('#cameraConfigModal').hide();
+
+                initThree(
+                    defaultFOV,
+                    defaultNear,
+                    defaultFar,
+                    defaultCameraZ,
+                    defaultCanvasW,
+                    defaultCanvasH
+                );
+
+                if(window._surfaces.length){
+                   window.buildSurfaceUI();
+                }
+
+            });
+
+            function initThree(fov, near, far, camZ, canvasRefW, canvasRefH) {
+                scene = new THREE.Scene();
+                window.scene = scene;
+                scene.background = new THREE.Color(0xffffff);
+
+                const ar = canvasRefW / canvasRefH;
+                const canvasW = window.innerWidth * 0.8;
+                const canvasH = canvasW / ar;
+
+                camera = new THREE.PerspectiveCamera(
+                    fov,
+                    canvasW / canvasH,
+                    near,
+                    far
+                );
+                camera.position.z = camZ;
+
+                window.camera = camera;
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setClearColor(0xffffff, 0);
+                renderer.setSize(canvasW, canvasH);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                document.body.appendChild(renderer.domElement);
+
+                // Match production loadTiles exactly:
+                // visibleHeight = 2 * tan((75 * PI) / 360) * camera.position.z  ← hardcoded 75
+                // visibleWidth  = visibleHeight * (coord.width / coord.height)   ← per-surface grid aspect
+                const PLANE_FOV  = 75;
+                window._surfaces.forEach(surf => {
+                    surf.visH = 2 * Math.tan((PLANE_FOV * Math.PI) / 360) * camZ;
+                    surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
+                });
+
+                // z-axis line
+                const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,5)]);
+                scene.add(new THREE.Line(zGeo, new THREE.LineBasicMaterial({ color: 0x0000ff })));
+
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                // expose reload helper
+                window._reloadActiveSurface = function () {
+                    const idx = window._activeSurfaceIndex;
+                    const surf = window._surfaces[idx];
+                    if (!surf) return;
+                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
+                    if (window._globalMaster.imageEl) window.loadMasterMesh(surf, window._globalMaster.imageEl);
+                };
+
+                setupGlobalControls();
+            }
+
+            // ── LOAD TILE MESH — uses per-surface visW/visH ──
+            function loadTileMesh(surf, image) {
+                if (surf.tileMesh) { scene.remove(surf.tileMesh); surf.tileMesh = null; }
+                if (!surf.visible) return;
+
+                const tex = new THREE.Texture(image);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.generateMipmaps = true;
+                tex.needsUpdate = true;
+                tex.minFilter = THREE.NearestFilter;
+                tex.magFilter = THREE.NearestFilter;
+
+                const geo = new THREE.PlaneGeometry(surf.visW, surf.visH);
+                const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, side: THREE.DoubleSide });
+                surf.tileMesh = new THREE.Mesh(geo, mat);
+                applyTransformToMesh(surf, surf.tileMesh);
+                scene.add(surf.tileMesh);
+            }
+            window.loadTileMesh = loadTileMesh;
+            // ── LOAD MASTER MESH — matches production loadMainImage exactly ──
+            function loadMasterMesh(surf, image) {
+                if (surf.masterMesh) { scene.remove(surf.masterMesh); surf.masterMesh = null; }
+                if (!surf.visible) return;
+
+                const tex = new THREE.Texture(image);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                tex.needsUpdate = true;
+
+                // production: camera.fov + camera.position.z + camera.aspect (= canvasW/canvasH = canvasRefW/canvasRefH)
+                const visH = 2 * Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
+                const visW = visH * camera.aspect;
+                const geo  = new THREE.PlaneGeometry(visW, visH);
+                const mat  = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: window._globalMaster.opacity, side: THREE.DoubleSide });
+                surf.masterMesh = new THREE.Mesh(geo, mat);
+                scene.add(surf.masterMesh);
+            }
+            window.loadMasterMesh = loadMasterMesh;
+            // ── APPLY GLOBAL MASTER OPACITY TO ALL MASTER MESHES ──
+            function applyMasterOpacity(opacity) {
+                window._globalMaster.opacity = opacity;
+                window._surfaces.forEach(surf => {
+                    if (surf.masterMesh) {
+                        surf.masterMesh.material.opacity = opacity;
+                        surf.masterMesh.material.needsUpdate = true;
+                    }
+                });
+            }
+
+            // ── RELOAD TILE MESH WITH CORRECT DIMENSIONS ──
+            function reloadSurfaceWithDimensions(surf) {
+                // production: hardcoded fov=75, actual camera.position.z, grid aspect
+                surf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
+                if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
+            }
+
+            function applyTransformToMesh(surf, mesh) {
+                if (!mesh) return;
+                mesh.position.copy(surf.position);
+                mesh.rotation.copy(surf.rotation);
+                mesh.scale.copy(surf.scale);
+            }
+
+            // ── READ CONTROLS → ACTIVE SURFACE ───────
+            function readControlsToSurface() {
+                const surf = window._surfaces[window._activeSurfaceIndex];
+                if (!surf) return;
+
+                surf.position.x = parseFloat($('#posX').val()) || 0;
+                surf.position.y = parseFloat($('#posY').val()) || 0;
+                surf.position.z = parseFloat($('#posZ').val()) || 0;
+                surf.rotation.x = parseFloat($('#rotX').val()) || 0;
+                surf.rotation.y = parseFloat($('#rotY').val()) || 0;
+                surf.rotation.z = parseFloat($('#rotZ').val()) || 0;
+                surf.scale.x    = parseFloat($('#scaleX').val()) || 1;
+                surf.scale.y    = parseFloat($('#scaleY').val()) || 1;
+                surf.scale.z    = parseFloat($('#scaleZ').val()) || 1;
+
+                applyTransformToMesh(surf, surf.tileMesh);
+
+                // opacity is global — applies to master image across all surfaces
+                const opVal = Math.max(0, Math.min(1, parseFloat($('#opacity').val()) || 1));
+                applyMasterOpacity(opVal);
+            }
+
+            function writeControlsFromSurface(surf) {
+                const p = surf.position, r = surf.rotation, s = surf.scale;
+                $('#posX').val(p.x.toFixed(decimalPrecision));
+                $('#posY').val(p.y.toFixed(decimalPrecision));
+                $('#posZ').val(p.z.toFixed(decimalPrecision));
+                $('#rotX').val(r.x.toFixed(decimalPrecision));
+                $('#rotY').val(r.y.toFixed(decimalPrecision));
+                $('#rotZ').val(r.z.toFixed(decimalPrecision));
+                $('#scaleX').val(s.x.toFixed(decimalPrecision));
+                $('#scaleY').val(s.y.toFixed(decimalPrecision));
+                $('#scaleZ').val(s.z.toFixed(decimalPrecision));
+                $('#opacity').val(window._globalMaster.opacity.toFixed(2));
+            }
+
+            // ── SURFACE TAB UI ────────────────────────
+            function buildSurfaceUI() {
+                 if(!window._surfaces){
+                    return;
+                }
+
+                if(window._surfaces.length === 0){
+                    return;
+                }
+                const tabBar = document.getElementById('surfaceTabBar');
+                const body   = document.getElementById('surfaceBody');
+
+                // rebuild tabs
+                // remove old tabs (keep the + button)
+                const addBtn = document.getElementById('addSurfaceBtn');
+                while (tabBar.firstChild && tabBar.firstChild !== addBtn) {
+                    tabBar.removeChild(tabBar.firstChild);
+                }
+
+                window._surfaces.forEach((surf, i) => {
+                    const tab = document.createElement('button');
+                    tab.className = 'surface-tab' + (i === window._activeSurfaceIndex ? ' active' : '');
+                    tab.dataset.index = i;
+
+                    const label = document.createElement('span');
+                    label.textContent = surf.name;
+                    tab.appendChild(label);
+
+                    if (window._surfaces.length > 1) {
+                        const rm = document.createElement('button');
+                        rm.className = 'remove-surface';
+                        rm.title = 'Remove surface';
+                        rm.textContent = '×';
+                        rm.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            removeSurface(i);
+                        });
+                        tab.appendChild(rm);
+                    }
+
+                    tab.addEventListener('click', () => switchSurface(i));
+                    tabBar.insertBefore(tab, addBtn);
+                });
+
+                // rebuild body for active surface
+                const surf =
+                    window._surfaces[
+                        window._activeSurfaceIndex
+                    ];
+
+                if(!surf){
+                    return;
+                }
+                body.innerHTML = '';
+
+                // name row
+                const nameRow = document.createElement('div');
+                nameRow.className = 'surface-name-row';
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.value = surf.name;
+                nameInput.addEventListener('input', () => {
+                    surf.name = nameInput.value;
+                    window.buildSurfaceUI(); // refresh tabs
+                });
+                nameRow.appendChild(nameInput);
+
+                const visBtn = document.createElement('button');
+                visBtn.className = 'surface-visibility-btn' + (surf.visible ? '' : ' hidden-surface');
+                visBtn.textContent = surf.visible ? 'Visible' : 'Hidden';
+                visBtn.addEventListener('click', () => {
+                    surf.visible = !surf.visible;
+                    toggleSurfaceVisibility(surf);
+                    window.buildSurfaceUI();
+                });
+                nameRow.appendChild(visBtn);
+                body.appendChild(nameRow);
+
+                // tile image + grid dimensions section
+                const tileSection = document.createElement('div');
+                tileSection.innerHTML = `
+                    <div style="font-size:12px;color:#555;margin-bottom:5px;font-weight:bold;">Tile Image</div>
+                    <div class="tile-action-buttons">
+                        <button id="chooseTileBtn_${window._activeSurfaceIndex}" onclick="document.getElementById('tileImageInput_${window._activeSurfaceIndex}').click()">Choose File</button>
+                        <button onclick="openTileGenerator(${window._activeSurfaceIndex})">Create Surface</button>
+                    </div>
+                    <input type="file" id="tileImageInput_${window._activeSurfaceIndex}" accept="image/*" style="display:none;">
+                    <div class="file-name" id="tileFileName_${window._activeSurfaceIndex}">${surf.tileFileName || 'No file'}</div>
+                    <div class="image-preview" id="tileImagePreview_${window._activeSurfaceIndex}" style="background-image:${surf.tileImageEl ? 'url('+surf._tilePreviewUrl+')' : 'none'}"></div>
+
+                    <div style="font-size:12px;color:#555;margin-top:12px;margin-bottom:5px;font-weight:bold;">Grid Dimensions</div>
+                    <div class="control-row">
+                        <label style="width:45px;">Width:</label>
+                        <input type="number" id="gridWidth_${window._activeSurfaceIndex}" value="${surf.gridWidth}" step="1" style="width:70px;">
+                    </div>
+                    <div class="control-row">
+                        <label style="width:45px;">Height:</label>
+                        <input type="number" id="gridHeight_${window._activeSurfaceIndex}" value="${surf.gridHeight}" step="1" style="width:70px;">
+                    </div>
+                    <button id="updateDimensions_${window._activeSurfaceIndex}" style="margin-top:6px;width:100%;">Update Dimensions</button>
+
+                    <button id="updateImages_${window._activeSurfaceIndex}" style="margin-top:10px;width:100%;">Apply Tile Image</button>
+                `;
+                body.appendChild(tileSection);
+
+                // wire file inputs
+                const idx = window._activeSurfaceIndex;
+                document.getElementById('tileImageInput_' + idx).addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    surf.tileImageFile = file;
+                    surf.tileFileName  = file.name;
+                    document.getElementById('tileFileName_' + idx).textContent = file.name;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        document.getElementById('tileImagePreview_' + idx).style.backgroundImage = 'url(' + ev.target.result + ')';
+                        surf._tilePreviewUrl = ev.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                // per-surface Update Dimensions — matches production loadTiles: fov=75 hardcoded, actual camZ, grid aspect
+                document.getElementById('updateDimensions_' + idx).addEventListener('click', function() {
+                    surf.gridWidth  = parseFloat(document.getElementById('gridWidth_'  + idx).value) || surf.gridWidth;
+                    surf.gridHeight = parseFloat(document.getElementById('gridHeight_' + idx).value) || surf.gridHeight;
+                    surf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                    surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
+                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
+                });
+
+                // Apply tile image button
+                document.getElementById('updateImages_' + idx).addEventListener('click', function() {
+                    if (surf.tileImageFile) {
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            const img = new Image();
+                            img.onload = () => { surf.tileImageEl = img; loadTileMesh(surf, img); };
+                            img.src = ev.target.result;
+                        };
+                        reader.readAsDataURL(surf.tileImageFile);
+                    } else if (surf.tileImageEl) {
+                        loadTileMesh(surf, surf.tileImageEl);
+                    } else {
+                        alert('Please select a tile image first.');
+                    }
+                });
+
+                // sync transform controls from surface
+                writeControlsFromSurface(surf);
+            }
+            window.buildSurfaceUI = buildSurfaceUI;
+            function switchSurface(idx) {
+                // save current before switching
+                readControlsToSurface();
+                window._activeSurfaceIndex = idx;
+                window.buildSurfaceUI();
+            }
+
+            function removeSurface(idx) {
+                const surf = window._surfaces[idx];
+                if (surf.tileMesh)   scene.remove(surf.tileMesh);
+                if (surf.masterMesh) scene.remove(surf.masterMesh);
+                window._surfaces.splice(idx, 1);
+                if (window._activeSurfaceIndex >= window._surfaces.length) {
+                    window._activeSurfaceIndex = window._surfaces.length - 1;
+                }
+                window.buildSurfaceUI();
+            }
+
+            function toggleSurfaceVisibility(surf) {
+                if (surf.visible) {
+                    // show
+                    if (surf.tileImageEl)   loadTileMesh(surf, surf.tileImageEl);
+                    if (window._globalMaster.imageEl) window.loadMasterMesh(surf, window._globalMaster.imageEl);
+                } else {
+                    // hide
+                    if (surf.tileMesh)   { scene.remove(surf.tileMesh);   surf.tileMesh   = null; }
+                    if (surf.masterMesh) { scene.remove(surf.masterMesh); surf.masterMesh = null; }
+                }
+            }
+
+            // ── ADD SURFACE BUTTON ────────────────────
+            document.getElementById('addSurfaceBtn').addEventListener('click', () => {
+                const num = window._surfaces.length + 1;
+                const newSurf = makeSurface('Surface ' + num);
+                newSurf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                newSurf.visW = newSurf.visH * (newSurf.gridWidth / newSurf.gridHeight);
+                window._surfaces.push(newSurf);
+                window._activeSurfaceIndex = window._surfaces.length - 1;
+                window.buildSurfaceUI();
+            });
+
+            // ── GLOBAL CONTROLS ──────────────────────
+            function setupGlobalControls() {
+                $('#posX,#posY,#posZ,#rotX,#rotY,#rotZ,#scaleX,#scaleY,#scaleZ,#opacity').on('input change', function() {
+                    readControlsToSurface();
+                });
+
+                // ── GLOBAL MASTER IMAGE ──
+                document.getElementById('masterImageInput_global').addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    window._globalMaster.file = file;
+                    window._globalMaster.fileName = file.name;
+                    document.getElementById('masterFileName_global').textContent = file.name;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        document.getElementById('masterImagePreview_global').style.backgroundImage = 'url(' + ev.target.result + ')';
+                        window._globalMaster.previewUrl = ev.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                document.getElementById('updateMasterImage_global').addEventListener('click', function() {
+                    if (!window._globalMaster.file && !window._globalMaster.imageEl) {
+                        alert('Please select a master image first.');
+                        return;
+                    }
+                    if (window._globalMaster.file) {
+                        const reader = new FileReader();
+                        reader.onload = function(ev) {
+                            const img = new Image();
+                            img.onload = () => {
+                                window._globalMaster.imageEl = img;
+                                // apply to all surfaces
+                                window._surfaces.forEach(surf => window.loadMasterMesh(surf, img));
+                            };
+                            img.src = ev.target.result;
+                        };
+                        reader.readAsDataURL(window._globalMaster.file);
+                    } else {
+                        window._surfaces.forEach(surf => window.loadMasterMesh(surf, window._globalMaster.imageEl));
+                    }
+                });
+
+                $('#decimalPrecision').on('change', function() {
+                    decimalPrecision = parseInt($(this).val()) || 4;
+                    const step = '0.' + '0'.repeat(decimalPrecision - 1) + '1';
+                    $('#posX,#posY,#posZ,#rotX,#rotY,#rotZ,#scaleX,#scaleY,#scaleZ').attr('step', step);
+                    const surf = window._surfaces[window._activeSurfaceIndex];
+                    if (surf) writeControlsFromSurface(surf);
+                });
+
+                $('#exportData').on('click', function() {
+                    const exportObj = {
+                        timestamp: new Date().toISOString(),
+                        masterImage: window._globalMaster.fileName || 'none',
+                        masterOpacity: window._globalMaster.opacity.toFixed(2),
+                        surfaces: window._surfaces.map((surf, i) => ({
+                            index: i,
+                            name: surf.name,
+                            visible: surf.visible,
+                            gridWidth: surf.gridWidth,
+                            gridHeight: surf.gridHeight,
+                            position: {
+                                x: surf.position.x.toFixed(decimalPrecision),
+                                y: surf.position.y.toFixed(decimalPrecision),
+                                z: surf.position.z.toFixed(decimalPrecision),
+                            },
+                            rotation: {
+                                x: surf.rotation.x.toFixed(decimalPrecision),
+                                y: surf.rotation.y.toFixed(decimalPrecision),
+                                z: surf.rotation.z.toFixed(decimalPrecision),
+                            },
+                            scale: {
+                                x: surf.scale.x.toFixed(decimalPrecision),
+                                y: surf.scale.y.toFixed(decimalPrecision),
+                                z: surf.scale.z.toFixed(decimalPrecision),
+                            },
+                            tileImage: surf.tileFileName || 'none',
+                        })),
+                    };
+                    const dataStr = JSON.stringify(exportObj, null, 2);
+                    const uri  = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', uri);
+                    link.setAttribute('download', 'coordinates.json');
+                    link.click();
+                });
+
+                $('#fullscreenToggle').on('click', function() {
+                    if (!document.fullscreenElement) {
+                        renderer.domElement.requestFullscreen().catch(err => alert('Fullscreen error: ' + err.message));
+                    } else {
+                        document.exitFullscreen();
+                    }
+                });
+            }
+        });
+    })(jQuery);
+    </script>
+</body>
+</html>
