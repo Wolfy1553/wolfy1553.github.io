@@ -524,7 +524,7 @@
     ═══════════════════════════════ -->
     <script>
         const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-        if (!isLoggedIn && false) {
+        if (!isLoggedIn) {
             window.location.href = 'login';
         } else {
             document.body.style.display = 'block';
