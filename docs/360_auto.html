@@ -533,24 +533,29 @@ function createWall(){
 
     );
 
-  groutPlane.position.z = -0.0025;
+  groutPlane.position.z = -0.002;
 
   tileGrid.add(groutPlane);
 
-  const outline =
-    new THREE.LineSegments(
+const border =
+  new THREE.Mesh(
 
-      new THREE.EdgesGeometry(
-        groutPlane.geometry
-      ),
+    new THREE.PlaneGeometry(
+      sceneWidth + 0.05,
+      sceneHeight + 0.05
+    ),
 
-      new THREE.LineBasicMaterial({
-        color:0xffff00
-      })
+    new THREE.MeshBasicMaterial({
+      color:0x111111,
+      side:THREE.DoubleSide
+    })
 
-    );
-  outline.scale.set(1.02, 1.02, 1.02);
-  tileGrid.add(outline);
+  );
+
+border.position.z = -0.003;
+border.userData.isBorder = true;
+
+tileGrid.add(border);
 
   for(let row=0; row<tileCountY; row++){
 
