@@ -537,25 +537,20 @@ function createWall(){
 
   tileGrid.add(groutPlane);
 
-const border =
-  new THREE.Mesh(
+  const outline =
+    new THREE.LineSegments(
 
-    new THREE.PlaneGeometry(
-      sceneWidth + 0.05,
-      sceneHeight + 0.05
-    ),
+      new THREE.EdgesGeometry(
+        groutPlane.geometry
+      ),
 
-    new THREE.MeshBasicMaterial({
-      color:0x111111,
-      side:THREE.DoubleSide
-    })
+      new THREE.LineBasicMaterial({
+        color:0x111111
+      })
 
-  );
-
-// border.position.z = -0.003;
-border.userData.isBorder = true;
-
-tileGrid.add(border);
+    );
+  outline.scale.set(1.02, 1.02, 1.02);
+  tileGrid.add(outline);
 
   for(let row=0; row<tileCountY; row++){
 
