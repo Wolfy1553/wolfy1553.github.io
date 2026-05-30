@@ -554,14 +554,9 @@
     //   TILE GENERATOR LOGIC (standalone, no jQuery)
     // ════════════════════════════════════════════
 $(document).ready(function () {
-    window._loadingScene = false;
     let tileGenTargetSurface = null; // which surface to apply generated tile to
 async function load3DScene(data){
-     if(window._loadingScene){
-        return;
-    }
 
-    window._loadingScene = true;
     // Set camera values
     $('#canvasWInput').val(data.RoomSize.width);
     $('#canvasHInput').val(data.RoomSize.height);
@@ -576,15 +571,11 @@ async function load3DScene(data){
 
     // Wait for camera initialization
     const waitForCamera = setInterval(() => {
-        if(
-            !window.camera ||
-            !window.scene ||
-            !window.renderer
-        ){
+        if (!window.camera) {
             return;
         }
 
-        clearInterval(waitForScene);
+        clearInterval(waitForCamera);
         // Clear old surfaces
         window._surfaces = [];
 
@@ -630,14 +621,13 @@ async function load3DScene(data){
         window._activeSurfaceIndex = 0;
 
         // Build UI
+        window.buildSurfaceUI();
 
         // Create default tile texture
         window._surfaces.forEach(surface => {
             createAutoSurface(surface);
         });
-        setTimeout(() => {
-            window.buildSurfaceUI();
-        }, 300);
+
         // Load master image
         if(data.Master && data.Master.length){
 
@@ -665,23 +655,23 @@ async function load3DScene(data){
         }
 
     }, 100);
-    window._loadingScene = false;
+
 }
 window.load3DScene = load3DScene;
 });
 function makeSurface(name) {
-    return {
-        name,
-        visible: true,
-        tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
-        tileMesh: null, masterMesh: null,
-        gridWidth: 3000, gridHeight: 2400,
-        visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
-        position: new THREE.Vector3(0,0,0),
-        rotation: new THREE.Euler(0,0,0),
-        scale:    new THREE.Vector3(1,1,1),
-    };
-}
+                return {
+                    name,
+                    visible: true,
+                    tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
+                    tileMesh: null, masterMesh: null,
+                    gridWidth: 3000, gridHeight: 2400,
+                    visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
+                    position: new THREE.Vector3(0,0,0),
+                    rotation: new THREE.Euler(0,0,0),
+                    scale:    new THREE.Vector3(1,1,1),
+                };
+            }
 function createAutoSurface(surface){
 
     const canvas =
@@ -740,8 +730,8 @@ function createAutoSurface(surface){
     function renderTilePreview(outputCanvas) {
         const surfW  = parseFloat(document.getElementById('tg_surfaceW').value) || 3600;
         const surfH  = parseFloat(document.getElementById('tg_surfaceH').value) || 2400;
-        const tileW  = parseFloat(document.getElementById('tg_tileW').value)  || 1200;
-        const tileH  = parseFloat(document.getElementById('tg_tileH').value)  || 600;
+        const tileW  = parseFloat(document.getElementById('tg_tileW').value)  || 600;
+        const tileH  = parseFloat(document.getElementById('tg_tileH').value)  || 300;
         const grout  = parseFloat(document.getElementById('tg_groutSize').value) || 5;
         const groutColor = document.getElementById('tg_groutColorHex').value || '#888888';
         const tileColor  = document.getElementById('tg_tileColorHex').value  || '#e8e0d0';
@@ -914,15 +904,6 @@ function createAutoSurface(surface){
             //                 tileMesh, masterMesh, gridWidth, gridHeight,
             //                 position, rotation, scale, opacity }
             // Master image is GLOBAL (shared across all surfaces)
-            window._surfaces.forEach(s => {
-                if(s.tileMesh){
-                    window.scene.remove(s.tileMesh);
-                }
-                if(s.masterMesh){
-                    window.scene.remove(s.masterMesh);
-                }
-            });
-
             window._surfaces = [];
             window._activeSurfaceIndex = 0;
             window._globalMaster = { file: null, imageEl: null, fileName: 'No file', previewUrl: null, opacity: 1 };
