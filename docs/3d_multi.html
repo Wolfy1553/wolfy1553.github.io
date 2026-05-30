@@ -732,6 +732,7 @@
                     tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
                     tileMesh: null, masterMesh: null,
                     gridWidth: 3000, gridHeight: 2400,
+                    visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
                     position: new THREE.Vector3(0,0,0),
                     rotation: new THREE.Euler(0,0,0),
                     scale:    new THREE.Vector3(1,1,1),
@@ -775,11 +776,14 @@
                 renderer.setPixelRatio(window.devicePixelRatio);
                 document.body.appendChild(renderer.domElement);
 
-                // Initial fixed visible size — uses camera.aspect exactly like the original code
-                // visibleHeight2 = 2 * tan(fov/2) * camZ  (original line)
-                // visibleWidth2 = visibleHeight2 * camera.aspect  (original line)
-                _fixedVisH = 2 * Math.tan((fov * Math.PI) / 360) * camZ;
-                _fixedVisW = _fixedVisH * camera.aspect;
+                // Match production loadTiles exactly:
+                // visibleHeight = 2 * tan((75 * PI) / 360) * camera.position.z  ← hardcoded 75
+                // visibleWidth  = visibleHeight * (coord.width / coord.height)   ← per-surface grid aspect
+                const PLANE_FOV  = 75;
+                window._surfaces.forEach(surf => {
+                    surf.visH = 2 * Math.tan((PLANE_FOV * Math.PI) / 360) * camZ;
+                    surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
+                });
 
                 // z-axis line
                 const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,5)]);
@@ -803,12 +807,7 @@
                 setupGlobalControls();
             }
 
-            // ── FIXED VISIBLE SIZE (based on canvas, preserves coordinate space) ──
-            // This must match original: Width=4000, Height=2667 aspect ratio
-            // gridWidth/gridHeight are ONLY used for tile generator image size, NOT for plane geometry
-            let _fixedVisW, _fixedVisH;
-
-            // ── LOAD TILE MESH (always uses fixed canvas visible size — preserves coordinates) ──
+            // ── LOAD TILE MESH — uses per-surface visW/visH ──
             function loadTileMesh(surf, image) {
                 if (surf.tileMesh) { scene.remove(surf.tileMesh); surf.tileMesh = null; }
                 if (!surf.visible) return;
@@ -820,15 +819,14 @@
                 tex.minFilter = THREE.NearestFilter;
                 tex.magFilter = THREE.NearestFilter;
 
-                const geo = new THREE.PlaneGeometry(_fixedVisW, _fixedVisH);
-                // tile mesh opacity is always 1 — opacity control is for master image only
+                const geo = new THREE.PlaneGeometry(surf.visW, surf.visH);
                 const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, side: THREE.DoubleSide });
                 surf.tileMesh = new THREE.Mesh(geo, mat);
                 applyTransformToMesh(surf, surf.tileMesh);
                 scene.add(surf.tileMesh);
             }
 
-            // ── LOAD MASTER MESH (opacity controlled by global Opacity slider) ──
+            // ── LOAD MASTER MESH — matches production loadMainImage exactly ──
             function loadMasterMesh(surf, image) {
                 if (surf.masterMesh) { scene.remove(surf.masterMesh); surf.masterMesh = null; }
                 if (!surf.visible) return;
@@ -837,6 +835,7 @@
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.needsUpdate = true;
 
+                // production: camera.fov + camera.position.z + camera.aspect (= canvasW/canvasH = canvasRefW/canvasRefH)
                 const visH = 2 * Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
                 const visW = visH * camera.aspect;
                 const geo  = new THREE.PlaneGeometry(visW, visH);
@@ -858,9 +857,9 @@
 
             // ── RELOAD TILE MESH WITH CORRECT DIMENSIONS ──
             function reloadSurfaceWithDimensions(surf) {
-                const _aspect = surf.gridWidth / surf.gridHeight;
-                _fixedVisH = 2 * Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
-                _fixedVisW = _fixedVisH * _aspect;
+                // production: hardcoded fov=75, actual camera.position.z, grid aspect
+                surf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
                 if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
             }
 
@@ -1014,15 +1013,12 @@
                     reader.readAsDataURL(file);
                 });
 
-                // per-surface Update Dimensions — recalculates plane visible size (same as original updateDimensions)
+                // per-surface Update Dimensions — matches production loadTiles: fov=75 hardcoded, actual camZ, grid aspect
                 document.getElementById('updateDimensions_' + idx).addEventListener('click', function() {
                     surf.gridWidth  = parseFloat(document.getElementById('gridWidth_'  + idx).value) || surf.gridWidth;
                     surf.gridHeight = parseFloat(document.getElementById('gridHeight_' + idx).value) || surf.gridHeight;
-                    // Recalculate _fixedVisW/H using grid aspect ratio — same formula as original code
-                    const _aspect = surf.gridWidth / surf.gridHeight;
-                    _fixedVisH = 2 * Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
-                    _fixedVisW = _fixedVisH * _aspect;
-                    // Reload tile mesh with new plane geometry
+                    surf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                    surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
                     if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
                 });
 
@@ -1080,7 +1076,10 @@
             // ── ADD SURFACE BUTTON ────────────────────
             document.getElementById('addSurfaceBtn').addEventListener('click', () => {
                 const num = window._surfaces.length + 1;
-                window._surfaces.push(makeSurface('Surface ' + num));
+                const newSurf = makeSurface('Surface ' + num);
+                newSurf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
+                newSurf.visW = newSurf.visH * (newSurf.gridWidth / newSurf.gridHeight);
+                window._surfaces.push(newSurf);
                 window._activeSurfaceIndex = window._surfaces.length - 1;
                 buildSurfaceUI();
             });
