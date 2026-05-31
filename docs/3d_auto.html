@@ -625,7 +625,34 @@ async function load3DScene(data){
 
         // Create default tile texture
         window._surfaces.forEach(surface => {
-            createAutoSurface(surface);
+            const params = {
+                surfW: surface.gridWidth,
+                surfH: surface.gridHeight,
+                tileW: 1200,
+                tileH: 600,
+                grout: 2,
+                groutColor: '#888888',
+                tileColor: '#e8e0d0'
+            };
+
+            const fullCanvas =
+                renderTileFullRes(params);
+
+            const img = new Image();
+
+            img.onload = () => {
+
+                surface.tileImageEl = img;
+
+                window.loadTileMesh(
+                    surface,
+                    img
+                );
+
+            };
+
+            img.src =
+                fullCanvas.toDataURL();
         });
 
         // Load master image
@@ -659,74 +686,19 @@ async function load3DScene(data){
 }
 window.load3DScene = load3DScene;
 });
-function makeSurface(name) {
-                return {
-                    name,
-                    visible: true,
-                    tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
-                    tileMesh: null, masterMesh: null,
-                    gridWidth: 3000, gridHeight: 2400,
-                    visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
-                    position: new THREE.Vector3(0,0,0),
-                    rotation: new THREE.Euler(0,0,0),
-                    scale:    new THREE.Vector3(1,1,1),
-                };
-            }
-function createAutoSurface(surface){
-
-    const canvas =
-        document.createElement('canvas');
-
-    canvas.width = 1024;
-    canvas.height = 1024;
-
-    const ctx =
-        canvas.getContext('2d');
-
-    ctx.fillStyle = '#d9d9d9';
-    ctx.fillRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-    ctx.strokeStyle = '#999';
-
-    for(let x=0;x<canvas.width;x+=100){
-
-        ctx.beginPath();
-        ctx.moveTo(x,0);
-        ctx.lineTo(x,canvas.height);
-        ctx.stroke();
-
+    function makeSurface(name) {
+        return {
+            name,
+            visible: true,
+            tileImageFile: null, tileImageEl: null, tileFileName: 'No file',
+            tileMesh: null, masterMesh: null,
+            gridWidth: 3000, gridHeight: 2400,
+            visW: null, visH: null,   // per-surface plane geometry size (set on Update Dimensions)
+            position: new THREE.Vector3(0,0,0),
+            rotation: new THREE.Euler(0,0,0),
+            scale:    new THREE.Vector3(1,1,1),
+        };
     }
-
-    for(let y=0;y<canvas.height;y+=100){
-
-        ctx.beginPath();
-        ctx.moveTo(0,y);
-        ctx.lineTo(canvas.width,y);
-        ctx.stroke();
-
-    }
-
-    const img = new Image();
-
-    img.onload = () => {
-
-        surface.tileImageEl = img;
-
-        window.loadTileMesh(
-            surface,
-            img
-        );
-
-    };
-
-    img.src = canvas.toDataURL();
-
-}
     function renderTilePreview(outputCanvas) {
         const surfW  = parseFloat(document.getElementById('tg_surfaceW').value) || 3600;
         const surfH  = parseFloat(document.getElementById('tg_surfaceH').value) || 2400;
@@ -855,7 +827,7 @@ function createAutoSurface(surface){
             const link = document.createElement('a');
             link.href     = url;
             link.download = 'tile_surface.png';
-            // link.click();
+            link.click();
             URL.revokeObjectURL(url);
 
         // Also load it into the target surface as tile image
