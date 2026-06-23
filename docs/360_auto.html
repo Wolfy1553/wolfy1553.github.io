@@ -552,16 +552,33 @@ function createWall(){
   outline.scale.set(1.02, 1.02, 1.02);
   tileGrid.add(outline);
 
+  const halfW = sceneWidth  / 2;
+  const halfH = sceneHeight / 2;
+
   for(let row=0; row<tileCountY; row++){
 
     for(let col=0; col<tileCountX; col++){
+
+      // Tile bounds in local scene space
+      const tileLeft   = col * (tileWidth3D  + groutSize) - halfW;
+      const tileRight  = tileLeft   + tileWidth3D;
+      const tileBottom = row * (tileHeight3D + groutSize) - halfH;
+      const tileTop    = tileBottom + tileHeight3D;
+
+      // Clip to surface boundary
+      const visLeft   = Math.max(tileLeft,   -halfW);
+      const visRight  = Math.min(tileRight,   halfW);
+      const visBottom = Math.max(tileBottom, -halfH);
+      const visTop    = Math.min(tileTop,     halfH);
+
+      if(visRight - visLeft < 0.0001 || visTop - visBottom < 0.0001) continue;
 
       const tile =
         new THREE.Mesh(
 
           new THREE.PlaneGeometry(
-            tileWidth3D,
-            tileHeight3D
+            visRight - visLeft,
+            visTop   - visBottom
           ),
 
           new THREE.MeshBasicMaterial({
@@ -573,15 +590,8 @@ function createWall(){
 
         );
 
-      tile.position.x =
-        col * (tileWidth3D + groutSize)
-        - sceneWidth / 2
-        + tileWidth3D / 2;
-
-      tile.position.y =
-        row * (tileHeight3D + groutSize)
-        - sceneHeight / 2
-        + tileHeight3D / 2;
+      tile.position.x = (visLeft   + visRight)  / 2;
+      tile.position.y = (visBottom + visTop) / 2;
 
       tileGrid.add(tile);
     }
