@@ -555,136 +555,138 @@
     // ════════════════════════════════════════════
 $(document).ready(function () {
     let tileGenTargetSurface = null; // which surface to apply generated tile to
-async function load3DScene(data){
+    window.currentItemId = '';
+    async function load3DScene(data){
 
-    // Set camera values
-    $('#canvasWInput').val(data.RoomSize.width);
-    $('#canvasHInput').val(data.RoomSize.height);
+        // Set camera values
+        window.currentItemId = data._id;
+        $('#canvasWInput').val(data.RoomSize.width);
+        $('#canvasHInput').val(data.RoomSize.height);
 
-    $('#fovInput').val(data.CameraSetting.FOV);
-    $('#nearInput').val(data.CameraSetting.Near);
-    $('#farInput').val(data.CameraSetting.Far);
-    $('#cameraZInput').val(data.CameraSetting.CameraZ);
+        $('#fovInput').val(data.CameraSetting.FOV);
+        $('#nearInput').val(data.CameraSetting.Near);
+        $('#farInput').val(data.CameraSetting.Far);
+        $('#cameraZInput').val(data.CameraSetting.CameraZ);
 
-    // Start ThreeJS
-    $('#startThreeJS').click();
+        // Start ThreeJS
+        $('#startThreeJS').click();
 
-    // Wait for camera initialization
-    const waitForCamera = setInterval(() => {
-        if (!window.camera) {
-            return;
-        }
+        // Wait for camera initialization
+        const waitForCamera = setInterval(() => {
+            if (!window.camera) {
+                return;
+            }
 
-        clearInterval(waitForCamera);
-        // Clear old surfaces
-        window._surfaces = [];
+            clearInterval(waitForCamera);
+            // Clear old surfaces
+            window._surfaces = [];
 
-        // Create surfaces from JSON
-        data.RoomCoordinate.forEach(coord => {
+            // Create surfaces from JSON
+            data.RoomCoordinate.forEach(coord => {
+                const surface = makeSurface(coord.name);
 
-            const surface = makeSurface(coord.name);
+                surface.carvingPass = coord.carvingPass;
+                surface.gridWidth = coord.width;
+                surface.gridHeight = coord.height;
 
-            surface.gridWidth = coord.width;
-            surface.gridHeight = coord.height;
-
-            surface.position.set(
-                coord.position.x,
-                coord.position.y,
-                coord.position.z
-            );
-
-            surface.rotation.set(
-                coord.rotation.x,
-                coord.rotation.y,
-                coord.rotation.z
-            );
-
-            surface.scale.set(
-                coord.scale.x,
-                coord.scale.y,
-                coord.scale.z
-            );
-
-            surface.visH =
-                2 * Math.tan((75 * Math.PI) / 360) *
-                window.camera.position.z;
-
-            surface.visW =
-                surface.visH *
-                (surface.gridWidth / surface.gridHeight);
-
-            window._surfaces.push(surface);
-
-        });
-
-        // Select first surface
-        window._activeSurfaceIndex = 0;
-
-        // Build UI
-        window.buildSurfaceUI();
-
-        // Create default tile texture
-        window._surfaces.forEach(surface => {
-            const params = {
-                surfW: surface.gridWidth,
-                surfH: surface.gridHeight,
-                tileW: 1200,
-                tileH: 600,
-                grout: 2,
-                groutColor: '#888888',
-                tileColor: '#e8e0d0'
-            };
-
-            const fullCanvas =
-                renderTileFullRes(params);
-
-            const img = new Image();
-
-            img.onload = () => {
-
-                surface.tileImageEl = img;
-
-                window.loadTileMesh(
-                    surface,
-                    img
+                surface.position.set(
+                    coord.position.x,
+                    coord.position.y,
+                    coord.position.z
                 );
 
-            };
+                surface.rotation.set(
+                    coord.rotation.x,
+                    coord.rotation.y,
+                    coord.rotation.z
+                );
 
-            img.src =
-                fullCanvas.toDataURL();
-        });
+                surface.scale.set(
+                    coord.scale.x,
+                    coord.scale.y,
+                    coord.scale.z
+                );
 
-        // Load master image
-        if(data.Master && data.Master.length){
+                surface.visH =
+                    2 * Math.tan((75 * Math.PI) / 360) *
+                    window.camera.position.z;
 
-            const masterImg = new Image();
+                surface.visW =
+                    surface.visH *
+                    (surface.gridWidth / surface.gridHeight);
 
-            masterImg.crossOrigin = 'anonymous';
+                window._surfaces.push(surface);
 
-            masterImg.onload = () => {
+            });
 
-                window._globalMaster.imageEl = masterImg;
+            // Select first surface
+            window._activeSurfaceIndex = 0;
 
-                window._surfaces.forEach(surface => {
+            // Build UI
+            window.buildSurfaceUI();
 
-                    window.loadMasterMesh(
+            // Create default tile texture
+            window._surfaces.forEach(surface => {
+                const params = {
+                    surfW: surface.gridWidth,
+                    surfH: surface.gridHeight,
+                    tileW: 1200,
+                    tileH: 600,
+                    grout: 2,
+                    groutColor: '#888888',
+                    tileColor: '#e8e0d0'
+                };
+
+                const fullCanvas =
+                    renderTileFullRes(params);
+
+                const img = new Image();
+
+                img.onload = () => {
+
+                    surface.tileImageEl = img;
+
+                    window.loadTileMesh(
                         surface,
-                        masterImg
+                        img
                     );
 
-                });
+                };
 
-            };
+                img.src =
+                    fullCanvas.toDataURL();
+            });
 
-            masterImg.src = data.Master[0];
+            // Load master image
+            if(data.Master && data.Master.length){
 
-        }
+                const masterImg = new Image();
 
-    }, 100);
+                masterImg.crossOrigin = 'anonymous';
 
-}
-window.load3DScene = load3DScene;
+                masterImg.onload = () => {
+
+                    window._globalMaster.imageEl = masterImg;
+
+                    window._surfaces.forEach(surface => {
+
+                        window.loadMasterMesh(
+                            surface,
+                            masterImg
+                        );
+
+                    });
+
+                };
+
+                masterImg.src = data.Master[0];
+
+            }
+
+        }, 100);
+
+    }
+    window.load3DScene = load3DScene;
 });
     function makeSurface(name) {
         return {
@@ -1359,7 +1361,7 @@ window.load3DScene = load3DScene;
                     const roomCoordinate = window._surfaces.map(surf => ({
 
                         name: surf.name,
-
+                        carvingPass: surf.carvingPass,
                         position: {
                             x: Number(surf.position.x),
                             y: Number(surf.position.y),
@@ -1385,6 +1387,7 @@ window.load3DScene = load3DScene;
 
                     window.opener.postMessage({
                         type: 'SAVE_ROOM_COORDINATE',
+                        itemId:window.currentItemId,
                         RoomCoordinate: roomCoordinate
                     }, 'https://admin.wolfynext.com');
 
