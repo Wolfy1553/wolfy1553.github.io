@@ -69,6 +69,27 @@ body{
   font-weight:700;
 }
 
+.axis-label{
+  display:flex !important;
+  justify-content:space-between;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.axis-label .axis-icon{
+  font-size:22px;
+}
+
+.axis-hint{
+  font-size:16px;
+  font-weight:600;
+  color:#8a8a8a;
+  text-transform:none;
+  letter-spacing:0;
+  white-space:nowrap;
+}
+
 .surface-field{
   border-left:4px solid #ff0044 !important;
 }
@@ -219,48 +240,75 @@ button:hover{
     </div>
 
     <div class="group">
-      <label>Position X</label>
-      <input class="position-field" type="number" step="0.01" id="posX" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">↔</span> Position X</span>
+        <span class="axis-hint">− Left&nbsp;&nbsp;|&nbsp;&nbsp;Right +</span>
+      </label>
+      <input class="position-field" type="number" step="0.01" id="posX" value="0" title="Move surface left (−) / right (+)">
     </div>
 
     <div class="group">
-      <label>Position Y</label>
-      <input class="position-field" type="number" step="0.01" id="posY" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">↕</span> Position Y</span>
+        <span class="axis-hint">− Bottom&nbsp;&nbsp;|&nbsp;&nbsp;Top +</span>
+      </label>
+      <input class="position-field" type="number" step="0.01" id="posY" value="0" title="Move surface down (−) / up (+)">
     </div>
 
     <div class="group">
-      <label>Position Z</label>
-      <input class="position-field" type="number" step="0.01" id="posZ" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">⤢</span> Position Z</span>
+        <span class="axis-hint">− Forward&nbsp;&nbsp;|&nbsp;&nbsp;Backward +</span>
+      </label>
+      <input class="position-field" type="number" step="0.01" id="posZ" value="0" title="Move surface away from you (−) / toward you (+)">
     </div>
 
     <div class="group">
-      <label>Rotation X</label>
-      <input class="rotation-field" type="number" step="0.001" id="rotX" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">⮃</span> Rotation X</span>
+        <span class="axis-hint">Tilt Up / Down</span>
+      </label>
+      <input class="rotation-field" type="number" step="0.001" id="rotX" value="0" title="Tilt surface up/down — radians: 1.571 = 90°, 3.142 = 180°">
     </div>
 
     <div class="group">
-      <label>Rotation Y</label>
-      <input class="rotation-field" type="number" step="0.001" id="rotY" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">⮂</span> Rotation Y</span>
+        <span class="axis-hint">Turn Left / Right</span>
+      </label>
+      <input class="rotation-field" type="number" step="0.001" id="rotY" value="0" title="Turn surface left/right — radians: 1.571 = 90°, 3.142 = 180°">
     </div>
 
     <div class="group">
-      <label>Rotation Z</label>
-      <input class="rotation-field" type="number" step="0.001" id="rotZ" value="0">
+      <label class="axis-label">
+        <span><span class="axis-icon">↻</span> Rotation Z</span>
+        <span class="axis-hint">Roll / Spin</span>
+      </label>
+      <input class="rotation-field" type="number" step="0.001" id="rotZ" value="0" title="Roll surface flat — radians: 1.571 = 90°, 3.142 = 180°">
     </div>
 
     <div class="group">
-      <label>Scale X</label>
-      <input class="scale-field" type="number" step="0.1" id="scaleX" value="1">
+      <label class="axis-label">
+        <span><span class="axis-icon">⇹</span> Scale X</span>
+        <span class="axis-hint">− Narrow&nbsp;&nbsp;|&nbsp;&nbsp;Wide +</span>
+      </label>
+      <input class="scale-field" type="number" step="0.1" id="scaleX" value="1" title="Stretch width: below 1 = narrower, above 1 = wider">
     </div>
 
     <div class="group">
-      <label>Scale Y</label>
-      <input class="scale-field" type="number" step="0.1" id="scaleY" value="1">
+      <label class="axis-label">
+        <span><span class="axis-icon">⇳</span> Scale Y</span>
+        <span class="axis-hint">− Short&nbsp;&nbsp;|&nbsp;&nbsp;Tall +</span>
+      </label>
+      <input class="scale-field" type="number" step="0.1" id="scaleY" value="1" title="Stretch height: below 1 = shorter, above 1 = taller">
     </div>
 
     <div class="group">
-      <label>Scale Z</label>
-      <input class="scale-field" type="number" step="0.1" id="scaleZ" value="1">
+      <label class="axis-label">
+        <span><span class="axis-icon">⤡</span> Scale Z</span>
+        <span class="axis-hint">− Thin&nbsp;&nbsp;|&nbsp;&nbsp;Deep +</span>
+      </label>
+      <input class="scale-field" type="number" step="0.1" id="scaleZ" value="1" title="Stretch depth: below 1 = thinner, above 1 = deeper">
     </div>
 
     <button id="addSurfaceBtn">
