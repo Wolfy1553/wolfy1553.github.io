@@ -586,6 +586,8 @@ $(document).ready(function () {
                 const surface = makeSurface(coord.name);
 
                 surface.carvingPass = coord.carvingPass;
+                surface.curve = Number(coord.curve) || 0;
+                surface.curveAxis = coord.curveAxis === 'height' ? 'height' : 'width';
                 surface.gridWidth = coord.width;
                 surface.gridHeight = coord.height;
 
@@ -699,8 +701,39 @@ $(document).ready(function () {
             position: new THREE.Vector3(0,0,0),
             rotation: new THREE.Euler(0,0,0),
             scale:    new THREE.Vector3(1,1,1),
+            // bent surface: degrees of arc (0 = flat), across 'width' or 'height'
+            curve: 0, curveAxis: 'width',
         };
     }
+
+    // ── CURVED SURFACE ──────────────────────────
+    // Same maths as the user panel render (shared/curved-plane.ts): a plane
+    // bent like part of a cylinder. curve = degrees of arc (0 = flat);
+    // + the middle comes forward (round column), - the middle goes back
+    // (curved wall seen from inside). The length along the bend stays the
+    // same (tiles keep their size) and the middle stays at the position.
+    function curvedPlane(width, height, curve, axis) {
+        const deg = Number(curve) || 0;
+        if (Math.abs(deg) < 0.01) return new THREE.PlaneGeometry(width, height);
+        const theta = Math.min(359, Math.abs(deg)) * Math.PI / 180;
+        const alongWidth = axis !== 'height';
+        const radius = (alongWidth ? width : height) / theta;
+        const segments = Math.max(8, Math.min(180, Math.ceil(Math.abs(deg) / 2)));
+        const geo = new THREE.PlaneGeometry(width, height,
+            alongWidth ? segments : 1, alongWidth ? 1 : segments);
+        const pos = geo.attributes.position;
+        const sign = deg > 0 ? 1 : -1;
+        for (let i = 0; i < pos.count; i++) {
+            const phi = (alongWidth ? pos.getX(i) : pos.getY(i)) / radius;
+            const along = radius * Math.sin(phi);
+            if (alongWidth) pos.setX(i, along); else pos.setY(i, along);
+            pos.setZ(i, sign * radius * (Math.cos(phi) - 1));
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+        return geo;
+    }
+    window.curvedPlane = curvedPlane;
     function renderTilePreview(outputCanvas) {
         const surfW  = parseFloat(document.getElementById('tg_surfaceW').value) || 3600;
         const surfH  = parseFloat(document.getElementById('tg_surfaceH').value) || 2400;
@@ -984,7 +1017,7 @@ $(document).ready(function () {
                 tex.minFilter = THREE.NearestFilter;
                 tex.magFilter = THREE.NearestFilter;
 
-                const geo = new THREE.PlaneGeometry(surf.visW, surf.visH);
+                const geo = curvedPlane(surf.visW, surf.visH, surf.curve, surf.curveAxis);
                 const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, side: THREE.DoubleSide });
                 surf.tileMesh = new THREE.Mesh(geo, mat);
                 applyTransformToMesh(surf, surf.tileMesh);
@@ -1172,6 +1205,20 @@ $(document).ready(function () {
                     </div>
                     <button id="updateDimensions_${window._activeSurfaceIndex}" style="margin-top:6px;width:100%;">Update Dimensions</button>
 
+                    <div style="font-size:12px;color:#555;margin-top:12px;margin-bottom:5px;font-weight:bold;">Curve <span style="font-weight:normal;color:#999;">(0 = flat)</span></div>
+                    <div class="control-row">
+                        <label style="width:45px;" title="Degrees of arc. +: middle comes forward (round column). -: middle goes back (curved wall from inside)">Angle:</label>
+                        <input type="number" id="curve_${window._activeSurfaceIndex}" value="${surf.curve || 0}" min="-359" max="359" step="1" style="width:70px;">
+                    </div>
+                    <input type="range" id="curveRange_${window._activeSurfaceIndex}" value="${surf.curve || 0}" min="-180" max="180" step="1" style="width:100%;">
+                    <div class="control-row">
+                        <label style="width:45px;" title="Bend across the width (curved wall, column) or across the height (arch, vault)">Across:</label>
+                        <select id="curveAxis_${window._activeSurfaceIndex}" style="width:80px;">
+                            <option value="width" ${surf.curveAxis !== 'height' ? 'selected' : ''}>width</option>
+                            <option value="height" ${surf.curveAxis === 'height' ? 'selected' : ''}>height</option>
+                        </select>
+                    </div>
+
                     <button id="updateImages_${window._activeSurfaceIndex}" style="margin-top:10px;width:100%;">Apply Tile Image</button>
                 `;
                 body.appendChild(tileSection);
@@ -1198,6 +1245,24 @@ $(document).ready(function () {
                     surf.gridHeight = parseFloat(document.getElementById('gridHeight_' + idx).value) || surf.gridHeight;
                     surf.visH = 2 * Math.tan((75 * Math.PI) / 360) * camera.position.z;
                     surf.visW = surf.visH * (surf.gridWidth / surf.gridHeight);
+                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
+                });
+
+                // Curve: redraw live while the angle / axis changes
+                const curveInput = document.getElementById('curve_' + idx);
+                const curveRange = document.getElementById('curveRange_' + idx);
+                const curveAxis  = document.getElementById('curveAxis_' + idx);
+                const applyCurve = (value) => {
+                    const v = Math.max(-359, Math.min(359, parseFloat(value) || 0));
+                    surf.curve = v;
+                    curveInput.value = v;
+                    curveRange.value = Math.max(-180, Math.min(180, v));
+                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
+                };
+                curveInput.addEventListener('input', () => applyCurve(curveInput.value));
+                curveRange.addEventListener('input', () => applyCurve(curveRange.value));
+                curveAxis.addEventListener('change', () => {
+                    surf.curveAxis = curveAxis.value === 'height' ? 'height' : 'width';
                     if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
                 });
 
@@ -1342,6 +1407,8 @@ $(document).ready(function () {
                                 y: surf.scale.y.toFixed(decimalPrecision),
                                 z: surf.scale.z.toFixed(decimalPrecision),
                             },
+                            curve: surf.curve || 0,
+                            curveAxis: surf.curveAxis || 'width',
                             tileImage: surf.tileFileName || 'none',
                         })),
                     };
@@ -1381,7 +1448,9 @@ $(document).ready(function () {
                         },
 
                         width: Number(surf.gridWidth),
-                        height: Number(surf.gridHeight)
+                        height: Number(surf.gridHeight),
+                        curve: Number(surf.curve) || 0,
+                        curveAxis: surf.curveAxis === 'height' ? 'height' : 'width'
 
                     }));
 
