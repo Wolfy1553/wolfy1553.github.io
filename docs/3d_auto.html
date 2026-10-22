@@ -586,10 +586,7 @@ $(document).ready(function () {
                 const surface = makeSurface(coord.name);
 
                 surface.carvingPass = coord.carvingPass;
-                surface.curve = Number(coord.curve) || 0;
-                surface.curveAxis = coord.curveAxis === 'height' ? 'height' : 'width';
-                surface.bendFrom = coord.bendFrom == null ? 0 : Number(coord.bendFrom);
-                surface.bendTo = coord.bendTo == null ? 1 : Number(coord.bendTo);
+                surface.bends = cleanBends(coord);
                 surface.shape = coord.shape && coord.shape.depth ? {
                     cols: coord.shape.cols, rows: coord.shape.rows, depth: coord.shape.depth.slice()
                 } : null;
@@ -707,104 +704,224 @@ $(document).ready(function () {
             rotation: new THREE.Euler(0,0,0),
             scale:    new THREE.Vector3(1,1,1),
             // bent surface: degrees of arc (0 = flat), across 'width' or 'height'
-            curve: 0, curveAxis: 'width', bendFrom: 0, bendTo: 1,
+            // bends: [{ axis, from, to, curve }] (see SURFACE SHAPE)
+            bends: [],
             // free shape: null or { cols, rows, depth[] }
             shape: null,
         };
     }
 
-    // ── SURFACE SHAPE ───────────────────────────
-    // Same code as the user panel render (shared/curved-plane.ts,
-    // surfaceGeometry): flat, bent (whole or part), and / or a free shape.
-    //  curve     degrees of arc of the bent part (0 = no bend);
-    //            + the bent part goes back, - it comes forward
-    //  curveAxis 'width' (left / right: wall, column) | 'height' (arch)
-    //  bendFrom / bendTo  part that bends, 0-1 (0 = left / bottom)
-    //  shape     { cols, rows, depth[] } points (row 0 = top) pushed
-    //            forward (+) / back (-)
-    function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-    function freeShape(shape) {
-        const cols = Math.round(Number(shape && shape.cols));
-        const rows = Math.round(Number(shape && shape.rows));
-        const depth = shape && shape.depth;
-        if (!(cols >= 2 && cols <= 9 && rows >= 2 && rows <= 9)) return null;
-        if (!Array.isArray(depth) || depth.length !== cols * rows) return null;
-        const values = depth.map(d => Number(d) || 0);
-        return values.some(d => d !== 0) ? { cols, rows, depth: values } : null;
+// ── SURFACE SHAPE ─────────────────────────────
+// Same code as the user panel render (shared/curved-plane.ts): any number
+// of bends (width 0-5 % 20°, width 15-25 % -40°, height 0-10 % 90° ...)
+// and / or a free shape. Bend: { axis: 'width' | 'height', from, to (0-1),
+// curve (degrees; + bends back, - comes forward) }.
+var MAX_BENDS = 12;
+function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function numOr(v, fallback){
+  var n = Number(v);
+  return v === null || v === undefined || v === '' || !Number.isFinite(n) ? fallback : n;
+}
+// The bends that do something (an older single curve becomes one bend)
+function cleanBends(opts){
+  opts = opts || {};
+  var list = Array.isArray(opts.bends) ? opts.bends : [];
+  if(!list.length && Number(opts.curve)){
+    list = [{ axis: opts.curveAxis, from: opts.bendFrom == null ? 0 : opts.bendFrom,
+      to: opts.bendTo == null ? 1 : opts.bendTo, curve: opts.curve }];
+  }
+  return list.slice(0, MAX_BENDS).map(function(b){
+    var from = clampN(numOr(b && b.from, 0), 0, 1), to = clampN(numOr(b && b.to, 1), 0, 1);
+    if(to < from){ var t = from; from = to; to = t; }
+    return { axis: b && b.axis === 'height' ? 'height' : 'width', from: from, to: to,
+      curve: clampN(Number(b && b.curve) || 0, -359, 359) };
+  }).filter(function(b){ return Math.abs(b.curve) >= 0.01 && b.to - b.from > 0.001; });
+}
+function freeShape(shape){
+  var cols = Math.round(Number(shape && shape.cols)), rows = Math.round(Number(shape && shape.rows));
+  var depth = shape && shape.depth;
+  if(!(cols >= 2 && cols <= 9 && rows >= 2 && rows <= 9)) return null;
+  if(!Array.isArray(depth) || depth.length !== cols * rows) return null;
+  var values = depth.map(function(d){ return Number(d) || 0; });
+  return values.some(function(d){ return d !== 0; }) ? { cols: cols, rows: rows, depth: values } : null;
+}
+function spline(p0, p1, p2, p3, t){
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+    + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+function depthAt(shape, u, v){
+  var cols = shape.cols, rows = shape.rows, depth = shape.depth;
+  var at = function(r, c){ return depth[clampN(r, 0, rows - 1) * cols + clampN(c, 0, cols - 1)]; };
+  var fx = clampN(u, 0, 1) * (cols - 1), fy = clampN(v, 0, 1) * (rows - 1);
+  var c = Math.min(cols - 2, Math.floor(fx)), r = Math.min(rows - 2, Math.floor(fy));
+  var tx = fx - c, ty = fy - r;
+  var row = function(rr){ return spline(at(rr, c - 1), at(rr, c), at(rr, c + 1), at(rr, c + 2), tx); };
+  return spline(row(r - 1), row(r), row(r + 1), row(r + 2), ty);
+}
+// The bends of one direction as a path (heading 0 at the middle)
+function bendPath(length, bends){
+  if(!bends.length) return null;
+  var parts = bends.map(function(b){ return { turn: b.curve * Math.PI / 180, from: b.from, to: b.to }; });
+  var part = function(p, s){ return clampN((s / length - p.from) / (p.to - p.from), 0, 1); };
+  var heading = function(s){
+    return parts.reduce(function(h, p){ return h + p.turn * (part(p, s) - part(p, length / 2)); }, 0);
+  };
+  var STEPS = 2000, ds = length / STEPS;
+  var pts = [{ a: 0, z: 0, h: heading(0) }];
+  for(var k = 0; k < STEPS; k++){
+    var h0 = pts[k].h, h1 = heading((k + 1) * ds), dh = h1 - h0;
+    var chord = Math.abs(dh) > 1e-9 ? ds * Math.sin(dh / 2) / (dh / 2) : ds;
+    var hm = (h0 + h1) / 2;
+    pts.push({ a: pts[k].a + chord * Math.cos(hm), z: pts[k].z - chord * Math.sin(hm), h: h1 });
+  }
+  var ma = pts[STEPS / 2].a, mz = pts[STEPS / 2].z;
+  pts.forEach(function(p){ p.a -= ma; p.z -= mz; });
+  var segments = clampN(Math.ceil(Math.max.apply(null, bends.map(function(b){
+    return Math.abs(b.curve) / 2 / (b.to - b.from); }))), 8, 600);
+  var at = function(s){
+    var f = clampN(s / length, 0, 1) * STEPS, i = Math.min(STEPS - 1, Math.floor(f)), t = f - i;
+    var p = pts[i], q = pts[i + 1];
+    return { a: p.a + (q.a - p.a) * t, z: p.z + (q.z - p.z) * t, h: p.h + (q.h - p.h) * t };
+  };
+  return { at: at, segments: segments };
+}
+// null = flat
+function surfaceDeformer(width, height, opts){
+  if(!(width > 0 && height > 0)) return null;
+  var bends = cleanBends(opts);
+  var across = bendPath(width, bends.filter(function(b){ return b.axis === 'width'; }));
+  var upDown = bendPath(height, bends.filter(function(b){ return b.axis === 'height'; }));
+  var shape = freeShape(opts && opts.shape);
+  if(!across && !upDown && !shape) return null;
+  var segX = across ? across.segments : 1, segY = upDown ? upDown.segments : 1;
+  if(shape){ segX = Math.max(segX, 48); segY = Math.max(segY, 48); }
+  // up / down bends first; the left / right bends carry them along
+  var map = function(x, y){
+    var ny = y, z = 0;
+    if(upDown){ var p = upDown.at(y + height / 2); ny = p.a; z = p.z; }
+    if(shape) z += depthAt(shape, x / width + 0.5, 0.5 - y / height);
+    if(across){
+      var q = across.at(x + width / 2);
+      return [q.a + Math.sin(q.h) * z, ny, q.z + Math.cos(q.h) * z];
     }
-    function spline(p0, p1, p2, p3, t) {
-        return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
-            + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+    return [x, ny, z];
+  };
+  return { map: map, piece: Math.min(width / segX, height / segY), segX: segX, segY: segY };
+}
+// One whole surface (3D room)
+function surfaceGeometry(width, height, opts){
+  var d = surfaceDeformer(width, height, opts);
+  if(!d) return new THREE.PlaneGeometry(width, height);
+  var geo = new THREE.PlaneGeometry(width, height, d.segX, d.segY);
+  var pos = geo.attributes.position;
+  for(var i = 0; i < pos.count; i++){
+    var m = d.map(pos.getX(i), pos.getY(i));
+    pos.setXYZ(i, m[0], m[1], m[2]);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+function subdivide(geo, maxEdge){
+  var pos = geo.attributes.position, uv = geo.attributes.uv, outPos = [], outUv = [];
+  var P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  var U = [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()];
+  for(var t = 0; t < pos.count; t += 3){
+    for(var k = 0; k < 3; k++){ P[k].fromBufferAttribute(pos, t + k); if(uv) U[k].fromBufferAttribute(uv, t + k); }
+    var longest = Math.max(P[0].distanceTo(P[1]), P[1].distanceTo(P[2]), P[2].distanceTo(P[0]));
+    var n = clampN(Math.ceil(longest / maxEdge), 1, 64);
+    var point = function(i, j){
+      var a = 1 - (i + j) / n, b = i / n, c = j / n;
+      outPos.push(P[0].x * a + P[1].x * b + P[2].x * c, P[0].y * a + P[1].y * b + P[2].y * c, P[0].z * a + P[1].z * b + P[2].z * c);
+      if(uv) outUv.push(U[0].x * a + U[1].x * b + U[2].x * c, U[0].y * a + U[1].y * b + U[2].y * c);
+    };
+    for(var j = 0; j < n; j++){
+      for(var i = 0; i < n - j; i++){
+        point(i, j); point(i + 1, j); point(i, j + 1);
+        if(i + j < n - 1){ point(i + 1, j); point(i + 1, j + 1); point(i, j + 1); }
+      }
     }
-    function depthAt(shape, u, v) {
-        const cols = shape.cols, rows = shape.rows, depth = shape.depth;
-        const at = (r, c) => depth[clampN(r, 0, rows - 1) * cols + clampN(c, 0, cols - 1)];
-        const fx = u * (cols - 1), fy = v * (rows - 1);
-        const c = Math.min(cols - 2, Math.floor(fx)), r = Math.min(rows - 2, Math.floor(fy));
-        const tx = fx - c, ty = fy - r;
-        const row = rr => spline(at(rr, c - 1), at(rr, c), at(rr, c + 1), at(rr, c + 2), tx);
-        return spline(row(r - 1), row(r), row(r + 1), row(r + 2), ty);
+  }
+  var out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+  if(uv) out.setAttribute('uv', new THREE.Float32BufferAttribute(outUv, 2));
+  return out;
+}
+// A surface made of many pieces (360 tiles, grout ...) put into the shape
+function shapeGroup(group, d){
+  var e = d.piece * 0.25;
+  var normalAt = function(x, y){
+    var p0 = d.map(x, y), p1 = d.map(x + e, y), p2 = d.map(x, y + e);
+    return new THREE.Vector3(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2])
+      .cross(new THREE.Vector3(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2])).normalize();
+  };
+  group.children.filter(function(o){ return o.isMesh; }).forEach(function(mesh){
+    var src = mesh.geometry, geo = src.index ? src.toNonIndexed() : src.clone();
+    mesh.updateMatrix();
+    geo.applyMatrix4(mesh.matrix);
+    geo = subdivide(geo, d.piece);
+    var pos = geo.attributes.position;
+    for(var i = 0; i < pos.count; i++){
+      var x = pos.getX(i), y = pos.getY(i), off = pos.getZ(i), p = d.map(x, y);
+      if(off){ var nn = normalAt(x, y); pos.setXYZ(i, p[0] + nn.x * off, p[1] + nn.y * off, p[2] + nn.z * off); }
+      else pos.setXYZ(i, p[0], p[1], p[2]);
     }
-    function surfaceGeometry(width, height, opts) {
-        opts = opts || {};
-        const deg = clampN(Number(opts.curve) || 0, -359, 359);
-        const alongWidth = opts.curveAxis !== 'height';
-        let from = clampN(Number(opts.bendFrom == null ? 0 : opts.bendFrom) || 0, 0, 1);
-        let to = clampN(Number(opts.bendTo == null ? 1 : opts.bendTo), 0, 1);
-        if (Number.isNaN(to)) to = 1;
-        if (to < from) { const t = from; from = to; to = t; }
-        const bent = Math.abs(deg) >= 0.01 && to - from > 0.001;
-        const shape = freeShape(opts.shape);
-        if (!bent && !shape) return new THREE.PlaneGeometry(width, height);
+    geo.computeVertexNormals();
+    mesh.geometry = geo;
+    mesh.position.set(0, 0, 0); mesh.rotation.set(0, 0, 0); mesh.scale.set(1, 1, 1);
+  });
+}
+// The list of bends (Across / From % / To % / Curve ° / remove). bends is
+// changed in place; onChange redraws the surface.
+function renderBendList(container, bends, onChange){
+  container.innerHTML = '';
+  if(!bends.length){
+    var empty = document.createElement('div');
+    empty.style.cssText = 'font-size:11px;color:#999;margin:4px 0;';
+    empty.textContent = 'Flat. Add a bend, e.g. width 0–5 % 20°.';
+    container.appendChild(empty);
+  }
+  bends.forEach(function(b, i){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 0;border-top:1px dashed #ddd;font-size:11px;';
+    row.innerHTML =
+      '<b style="color:#E66D22;width:14px;">' + (i + 1) + '</b>' +
+      '<select data-k="axis" title="Bend left / right (wall, column) or up / down (arch, cove)">' +
+        '<option value="width"' + (b.axis !== 'height' ? ' selected' : '') + '>width</option>' +
+        '<option value="height"' + (b.axis === 'height' ? ' selected' : '') + '>height</option></select>' +
+      '<input data-k="from" type="number" min="0" max="100" step="1" style="width:44px;" title="From % (0 = ' + (b.axis === 'height' ? 'bottom' : 'left') + ')" value="' + Math.round(b.from * 100) + '">' +
+      '<span>–</span>' +
+      '<input data-k="to" type="number" min="0" max="100" step="1" style="width:44px;" title="To %" value="' + Math.round(b.to * 100) + '"><span>%</span>' +
+      '<input data-k="curve" type="number" min="-359" max="359" step="1" style="width:52px;" title="Curve degrees: + bends back, − comes forward" value="' + b.curve + '"><span>°</span>' +
+      '<button type="button" data-k="remove" title="Remove this bend" style="margin-left:auto;padding:0 6px;color:#c00;">×</button>';
+    row.querySelectorAll('[data-k]').forEach(function(el){
+      var k = el.getAttribute('data-k');
+      if(k === 'remove'){
+        el.addEventListener('click', function(){ bends.splice(i, 1); renderBendList(container, bends, onChange); onChange(); });
+        return;
+      }
+      el.addEventListener(k === 'axis' ? 'change' : 'input', function(){
+        if(k === 'axis') b.axis = el.value === 'height' ? 'height' : 'width';
+        else if(k === 'curve') b.curve = clampN(Number(el.value) || 0, -359, 359);
+        else { var v = parseFloat(el.value); b[k] = Number.isFinite(v) ? clampN(v, 0, 100) / 100 : (k === 'to' ? 1 : 0); }
+        onChange();
+      });
+    });
+    container.appendChild(row);
+  });
+}
+// A new bend: same direction as the last one, starting where it ended
+function addBendTo(bends){
+  if(bends.length >= MAX_BENDS) return;
+  var last = bends[bends.length - 1];
+  var from = last ? Math.min(0.95, last.to) : 0;
+  bends.push({ axis: last ? last.axis : 'width', from: from, to: last ? Math.min(1, from + 0.1) : 1, curve: 30 });
+}
+// Bends as edited (all rows, also 0° ones) for saving
+function bendsForSave(bends){
+  return (bends || []).map(function(b){ return { axis: b.axis, from: b.from, to: b.to, curve: b.curve }; });
+}
 
-        const length = alongWidth ? width : height;
-        let along = bent ? clampN(Math.ceil(Math.abs(deg) / 2 / (to - from)), 8, 400) : 1;
-        let across = 1;
-        if (shape) { along = Math.max(along, 48); across = 48; }
-        const geo = new THREE.PlaneGeometry(width, height,
-            alongWidth ? along : across, alongWidth ? across : along);
-        const pos = geo.attributes.position;
-
-        let path = [];
-        const STEPS = 2000;
-        if (bent) {
-            const theta = Math.abs(deg) * Math.PI / 180;
-            const sign = deg > 0 ? 1 : -1;
-            const part = s => clampN((s / length - from) / (to - from), 0, 1);
-            const mid = part(length / 2);
-            const heading = s => sign * theta * (part(s) - mid);
-            const ds = length / STEPS;
-            path = [{ a: 0, z: 0 }];
-            for (let k = 0; k < STEPS; k++) {
-                const h0 = heading(k * ds), h1 = heading((k + 1) * ds);
-                const dh = h1 - h0;
-                const chord = Math.abs(dh) > 1e-9 ? ds * Math.sin(dh / 2) / (dh / 2) : ds;
-                const hm = (h0 + h1) / 2;
-                path.push({ a: path[k].a + chord * Math.cos(hm), z: path[k].z - chord * Math.sin(hm) });
-            }
-            const m = path[STEPS / 2];
-            path = path.map(p => ({ a: p.a - m.a, z: p.z - m.z }));
-        }
-        const pathAt = s => {
-            const f = clampN(s / length, 0, 1) * STEPS;
-            const k = Math.min(STEPS - 1, Math.floor(f)), t = f - k;
-            return { a: path[k].a + (path[k + 1].a - path[k].a) * t, z: path[k].z + (path[k + 1].z - path[k].z) * t };
-        };
-        for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i), y = pos.getY(i);
-            let z = 0;
-            if (bent) {
-                const p = pathAt((alongWidth ? x : y) + length / 2);
-                if (alongWidth) pos.setX(i, p.a); else pos.setY(i, p.a);
-                z = p.z;
-            }
-            if (shape) z += depthAt(shape, x / width + 0.5, 0.5 - y / height);
-            pos.setZ(i, z);
-        }
-        pos.needsUpdate = true;
-        geo.computeVertexNormals();
-        return geo;
-    }
     window.surfaceGeometry = surfaceGeometry;
     function renderTilePreview(outputCanvas) {
         const surfW  = parseFloat(document.getElementById('tg_surfaceW').value) || 3600;
@@ -1277,33 +1394,9 @@ $(document).ready(function () {
                     </div>
                     <button id="updateDimensions_${window._activeSurfaceIndex}" style="margin-top:6px;width:100%;">Update Dimensions</button>
 
-                    <div style="font-size:12px;color:#555;margin-top:12px;margin-bottom:5px;font-weight:bold;">Curve <span style="font-weight:normal;color:#999;">(0 = flat)</span></div>
-                    <div class="control-row">
-                        <label style="width:45px;" title="Degrees of arc. +: middle comes forward (round column). -: middle goes back (curved wall from inside)">Angle:</label>
-                        <input type="number" id="curve_${window._activeSurfaceIndex}" value="${surf.curve || 0}" min="-359" max="359" step="1" style="width:70px;">
-                    </div>
-                    <input type="range" id="curveRange_${window._activeSurfaceIndex}" value="${surf.curve || 0}" min="-180" max="180" step="1" style="width:100%;">
-                    <div class="control-row">
-                        <label style="width:45px;" title="Bend across the width (curved wall, column) or across the height (arch, vault)">Across:</label>
-                        <select id="curveAxis_${window._activeSurfaceIndex}" style="width:80px;">
-                            <option value="width" ${surf.curveAxis !== 'height' ? 'selected' : ''}>width</option>
-                            <option value="height" ${surf.curveAxis === 'height' ? 'selected' : ''}>height</option>
-                        </select>
-                    </div>
-                    <div class="control-row" title="Only this part bends; the rest stays flat (0 = ${surf.curveAxis === 'height' ? 'bottom' : 'left'})">
-                        <label style="width:45px;">Part:</label>
-                        <input type="number" id="bendFrom_${window._activeSurfaceIndex}" value="${Math.round((surf.bendFrom ?? 0) * 100)}" min="0" max="100" step="1" style="width:46px;">
-                        <span style="margin:0 4px;">–</span>
-                        <input type="number" id="bendTo_${window._activeSurfaceIndex}" value="${Math.round((surf.bendTo ?? 1) * 100)}" min="0" max="100" step="1" style="width:46px;">
-                        <span style="margin-left:4px;">%</span>
-                    </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;" id="bendPresets_${window._activeSurfaceIndex}">
-                        <button type="button" data-from="0" data-to="100" style="padding:2px 6px;font-size:11px;">Whole</button>
-                        <button type="button" data-from="0" data-to="50" style="padding:2px 6px;font-size:11px;">${surf.curveAxis === 'height' ? 'Bottom' : 'Left'} half</button>
-                        <button type="button" data-from="50" data-to="100" style="padding:2px 6px;font-size:11px;">${surf.curveAxis === 'height' ? 'Top' : 'Right'} half</button>
-                        <button type="button" data-from="0" data-to="25" style="padding:2px 6px;font-size:11px;">${surf.curveAxis === 'height' ? 'Bottom' : 'Left'} edge</button>
-                        <button type="button" data-from="75" data-to="100" style="padding:2px 6px;font-size:11px;">${surf.curveAxis === 'height' ? 'Top' : 'Right'} edge</button>
-                    </div>
+                    <div style="font-size:12px;color:#555;margin-top:12px;margin-bottom:5px;font-weight:bold;">Bends <span style="font-weight:normal;color:#999;">(+ back, − forward)</span></div>
+                    <div id="bendList_${window._activeSurfaceIndex}"></div>
+                    <button type="button" id="addBend_${window._activeSurfaceIndex}" style="margin:4px 0 6px;width:100%;">+ Add bend</button>
 
                     <div style="font-size:12px;color:#555;margin-top:12px;margin-bottom:5px;font-weight:bold;">Free shape <span style="font-weight:normal;color:#999;">(push points: + forward, − back)</span></div>
                     <div class="control-row">
@@ -1348,42 +1441,15 @@ $(document).ready(function () {
                     if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
                 });
 
-                // Curve: redraw live while the angle / axis changes
-                const curveInput = document.getElementById('curve_' + idx);
-                const curveRange = document.getElementById('curveRange_' + idx);
-                const curveAxis  = document.getElementById('curveAxis_' + idx);
-                const applyCurve = (value) => {
-                    const v = Math.max(-359, Math.min(359, parseFloat(value) || 0));
-                    surf.curve = v;
-                    curveInput.value = v;
-                    curveRange.value = Math.max(-180, Math.min(180, v));
-                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
-                };
-                curveInput.addEventListener('input', () => applyCurve(curveInput.value));
-                curveRange.addEventListener('input', () => applyCurve(curveRange.value));
-                curveAxis.addEventListener('change', () => {
-                    surf.curveAxis = curveAxis.value === 'height' ? 'height' : 'width';
-                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
-                    window.buildSurfaceUI(); // labels: left / right or bottom / top
-                });
-
-                // Bent part (0-100 %) and quick presets
-                const bendFromEl = document.getElementById('bendFrom_' + idx);
-                const bendToEl   = document.getElementById('bendTo_' + idx);
-                const applyPart = () => {
-                    surf.bendFrom = clampN((parseFloat(bendFromEl.value) || 0) / 100, 0, 1);
-                    const to = parseFloat(bendToEl.value);
-                    surf.bendTo = clampN(Number.isFinite(to) ? to / 100 : 1, 0, 1);
-                    if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl);
-                };
-                bendFromEl.addEventListener('input', applyPart);
-                bendToEl.addEventListener('input', applyPart);
-                document.querySelectorAll('#bendPresets_' + idx + ' button').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        bendFromEl.value = btn.dataset.from;
-                        bendToEl.value = btn.dataset.to;
-                        applyPart();
-                    });
+                // Bends: a list of bent parts (Across / From / To / Curve)
+                const bendList = document.getElementById('bendList_' + idx);
+                if (!Array.isArray(surf.bends)) surf.bends = cleanBends(surf);
+                const redrawBends = () => { if (surf.tileImageEl) loadTileMesh(surf, surf.tileImageEl); };
+                renderBendList(bendList, surf.bends, redrawBends);
+                document.getElementById('addBend_' + idx).addEventListener('click', () => {
+                    addBendTo(surf.bends);
+                    renderBendList(bendList, surf.bends, redrawBends);
+                    redrawBends();
                 });
 
                 // Free shape: a grid of inputs laid out like the surface
@@ -1571,10 +1637,7 @@ $(document).ready(function () {
                                 y: surf.scale.y.toFixed(decimalPrecision),
                                 z: surf.scale.z.toFixed(decimalPrecision),
                             },
-                            curve: surf.curve || 0,
-                            curveAxis: surf.curveAxis || 'width',
-                            bendFrom: surf.bendFrom ?? 0,
-                            bendTo: surf.bendTo ?? 1,
+                            bends: cleanBends(surf),
                             shape: freeShape(surf.shape),
                             tileImage: surf.tileFileName || 'none',
                         })),
@@ -1616,10 +1679,7 @@ $(document).ready(function () {
 
                         width: Number(surf.gridWidth),
                         height: Number(surf.gridHeight),
-                        curve: Number(surf.curve) || 0,
-                        curveAxis: surf.curveAxis === 'height' ? 'height' : 'width',
-                        bendFrom: surf.bendFrom == null ? 0 : Number(surf.bendFrom),
-                        bendTo: surf.bendTo == null ? 1 : Number(surf.bendTo),
+                        bends: cleanBends(surf),
                         shape: freeShape(surf.shape)
 
                     }));
