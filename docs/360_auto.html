@@ -311,6 +311,60 @@ button:hover{
       <input class="scale-field" type="number" step="0.1" id="scaleZ" value="1" title="Stretch depth: below 1 = thinner, above 1 = deeper">
     </div>
 
+    <!-- Bent surface: curved wall, round column, arch (whole or part) -->
+    <div class="group">
+      <label class="axis-label">
+        <span><span class="axis-icon">⌒</span> Curve (degrees)</span>
+        <span class="axis-hint">0 = flat&nbsp;|&nbsp;+ back&nbsp;|&nbsp;− forward</span>
+      </label>
+      <input type="number" step="1" min="-359" max="359" id="curve" value="0" title="Degrees of arc of the bent part. +: it bends away (round column); −: it comes toward you (curved wall from inside)">
+      <input type="range" min="-180" max="180" step="1" id="curveRange" value="0" style="width:100%;">
+    </div>
+    <div class="group">
+      <label class="axis-label"><span>Bend across</span></label>
+      <select id="curveAxis" style="width:100%;">
+        <option value="width">width (wall, column)</option>
+        <option value="height">height (arch, vault)</option>
+      </select>
+    </div>
+    <div class="group">
+      <label class="axis-label">
+        <span>Bent part %</span>
+        <span class="axis-hint" id="bendHint">0 = left&nbsp;|&nbsp;100 = right</span>
+      </label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="number" min="0" max="100" step="1" id="bendFrom" value="0" title="Where the bend starts (the rest stays flat)">
+        <span>–</span>
+        <input type="number" min="0" max="100" step="1" id="bendTo" value="100" title="Where the bend ends (the rest stays flat)">
+      </div>
+      <div id="bendPresets" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+        <button type="button" data-from="0" data-to="100">Whole</button>
+        <button type="button" data-from="0" data-to="50" class="bp-first">Left half</button>
+        <button type="button" data-from="50" data-to="100" class="bp-last">Right half</button>
+        <button type="button" data-from="0" data-to="25" class="bp-first-edge">Left edge</button>
+        <button type="button" data-from="75" data-to="100" class="bp-last-edge">Right edge</button>
+      </div>
+    </div>
+    <!-- Free shape: push points of the surface forward / back -->
+    <div class="group">
+      <label class="axis-label">
+        <span>Free shape points</span>
+        <span class="axis-hint">+ forward&nbsp;|&nbsp;− back (metres)</span>
+      </label>
+      <select id="shapeSize" style="width:100%;">
+        <option value="0">off</option>
+        <option value="3">3 × 3</option>
+        <option value="4">4 × 4</option>
+        <option value="5">5 × 5</option>
+        <option value="7">7 × 7</option>
+      </select>
+      <div id="shapeGrid" style="display:grid;gap:2px;margin-top:4px;"></div>
+      <div id="shapeTools" style="display:none;gap:6px;align-items:center;margin-top:4px;">
+        <label style="font-size:11px;">Step <input type="number" id="shapeStep" value="0.05" step="0.01" min="0.001" style="width:60px;"></label>
+        <button type="button" id="shapeFlat">Flat</button>
+      </div>
+    </div>
+
     <button id="addSurfaceBtn">
       Add Surface
     </button>
@@ -403,6 +457,203 @@ const light =
 light.position.set(10,10,10);
 
 scene.add(light);
+
+// ── SURFACE SHAPE ─────────────────────────────
+// Same code as the user panel 360 render (shared/curved-plane.ts:
+// surfaceDeformer + shapeGroup): bent (whole or part) and / or free shape.
+function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function freeShape(shape){
+  const cols = Math.round(Number(shape && shape.cols));
+  const rows = Math.round(Number(shape && shape.rows));
+  const depth = shape && shape.depth;
+  if(!(cols >= 2 && cols <= 9 && rows >= 2 && rows <= 9)) return null;
+  if(!Array.isArray(depth) || depth.length !== cols * rows) return null;
+  const values = depth.map(d => Number(d) || 0);
+  return values.some(d => d !== 0) ? { cols, rows, depth: values } : null;
+}
+function spline(p0, p1, p2, p3, t){
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+    + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+function depthAt(shape, u, v){
+  const cols = shape.cols, rows = shape.rows, depth = shape.depth;
+  const at = (r, c) => depth[clampN(r, 0, rows - 1) * cols + clampN(c, 0, cols - 1)];
+  const fx = clampN(u, 0, 1) * (cols - 1), fy = clampN(v, 0, 1) * (rows - 1);
+  const c = Math.min(cols - 2, Math.floor(fx)), r = Math.min(rows - 2, Math.floor(fy));
+  const tx = fx - c, ty = fy - r;
+  const row = rr => spline(at(rr, c - 1), at(rr, c), at(rr, c + 1), at(rr, c + 2), tx);
+  return spline(row(r - 1), row(r), row(r + 1), row(r + 2), ty);
+}
+function surfaceDeformer(width, height, opts){
+  opts = opts || {};
+  const deg = clampN(Number(opts.curve) || 0, -359, 359);
+  const alongWidth = opts.curveAxis !== 'height';
+  let from = clampN(Number(opts.bendFrom == null ? 0 : opts.bendFrom) || 0, 0, 1);
+  let to = clampN(Number(opts.bendTo == null ? 1 : opts.bendTo), 0, 1);
+  if(Number.isNaN(to)) to = 1;
+  if(to < from){ const t = from; from = to; to = t; }
+  const bent = Math.abs(deg) >= 0.01 && to - from > 0.001;
+  const shape = freeShape(opts.shape);
+  if(!(width > 0 && height > 0) || (!bent && !shape)) return null;
+  const length = alongWidth ? width : height;
+  let along = bent ? clampN(Math.ceil(Math.abs(deg) / 2 / (to - from)), 8, 400) : 1;
+  let across = 1;
+  if(shape){ along = Math.max(along, 48); across = 48; }
+  let path = [];
+  const STEPS = 2000;
+  if(bent){
+    const theta = Math.abs(deg) * Math.PI / 180, sign = deg > 0 ? 1 : -1;
+    const part = s => clampN((s / length - from) / (to - from), 0, 1);
+    const mid = part(length / 2);
+    const heading = s => sign * theta * (part(s) - mid);
+    const ds = length / STEPS;
+    path = [{ a: 0, z: 0 }];
+    for(let k = 0; k < STEPS; k++){
+      const h0 = heading(k * ds), h1 = heading((k + 1) * ds), dh = h1 - h0;
+      const chord = Math.abs(dh) > 1e-9 ? ds * Math.sin(dh / 2) / (dh / 2) : ds;
+      const hm = (h0 + h1) / 2;
+      path.push({ a: path[k].a + chord * Math.cos(hm), z: path[k].z - chord * Math.sin(hm) });
+    }
+    const m = path[STEPS / 2];
+    path = path.map(p => ({ a: p.a - m.a, z: p.z - m.z }));
+  }
+  const pathAt = s => {
+    const f = clampN(s / length, 0, 1) * STEPS;
+    const k = Math.min(STEPS - 1, Math.floor(f)), t = f - k;
+    return { a: path[k].a + (path[k + 1].a - path[k].a) * t, z: path[k].z + (path[k + 1].z - path[k].z) * t };
+  };
+  const map = (x, y) => {
+    let nx = x, ny = y, z = 0;
+    if(bent){
+      const p = pathAt((alongWidth ? x : y) + length / 2);
+      if(alongWidth) nx = p.a; else ny = p.a;
+      z = p.z;
+    }
+    if(shape) z += depthAt(shape, x / width + 0.5, 0.5 - y / height);
+    return [nx, ny, z];
+  };
+  const piece = Math.min((alongWidth ? width : height) / along, (alongWidth ? height : width) / across);
+  return { map, piece, alongWidth, along, across };
+}
+function subdivide(geo, maxEdge){
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const outPos = [], outUv = [];
+  const P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const U = [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()];
+  for(let t = 0; t < pos.count; t += 3){
+    for(let k = 0; k < 3; k++){
+      P[k].fromBufferAttribute(pos, t + k);
+      if(uv) U[k].fromBufferAttribute(uv, t + k);
+    }
+    const longest = Math.max(P[0].distanceTo(P[1]), P[1].distanceTo(P[2]), P[2].distanceTo(P[0]));
+    const n = clampN(Math.ceil(longest / maxEdge), 1, 64);
+    const point = (i, j) => {
+      const a = 1 - (i + j) / n, b = i / n, c = j / n;
+      outPos.push(P[0].x * a + P[1].x * b + P[2].x * c, P[0].y * a + P[1].y * b + P[2].y * c, P[0].z * a + P[1].z * b + P[2].z * c);
+      if(uv) outUv.push(U[0].x * a + U[1].x * b + U[2].x * c, U[0].y * a + U[1].y * b + U[2].y * c);
+    };
+    for(let j = 0; j < n; j++){
+      for(let i = 0; i < n - j; i++){
+        point(i, j); point(i + 1, j); point(i, j + 1);
+        if(i + j < n - 1){ point(i + 1, j); point(i + 1, j + 1); point(i, j + 1); }
+      }
+    }
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(outPos, 3));
+  if(uv) out.setAttribute('uv', new THREE.Float32BufferAttribute(outUv, 2));
+  return out;
+}
+function shapeGroup(group, d){
+  const e = d.piece * 0.25;
+  const normalAt = (x, y) => {
+    const p0 = d.map(x, y), p1 = d.map(x + e, y), p2 = d.map(x, y + e);
+    return new THREE.Vector3(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2])
+      .cross(new THREE.Vector3(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2])).normalize();
+  };
+  const meshes = group.children.filter(o => o.isMesh);
+  meshes.forEach(mesh => {
+    const src = mesh.geometry;
+    let geo = src.index ? src.toNonIndexed() : src.clone();
+    mesh.updateMatrix();
+    geo.applyMatrix4(mesh.matrix);
+    geo = subdivide(geo, d.piece);
+    const pos = geo.attributes.position;
+    for(let i = 0; i < pos.count; i++){
+      const x = pos.getX(i), y = pos.getY(i), off = pos.getZ(i);
+      const p = d.map(x, y);
+      if(off){
+        const n = normalAt(x, y);
+        pos.setXYZ(i, p[0] + n.x * off, p[1] + n.y * off, p[2] + n.z * off);
+      }else{
+        pos.setXYZ(i, p[0], p[1], p[2]);
+      }
+    }
+    geo.computeVertexNormals();
+    mesh.geometry = geo;
+    mesh.position.set(0, 0, 0);
+    mesh.rotation.set(0, 0, 0);
+    mesh.scale.set(1, 1, 1);
+  });
+}
+
+// Free-shape points of the surface being edited (null = off)
+let currentShape = null;
+function readSurfaceShape(){
+  const to = parseFloat($('#bendTo').val());
+  return {
+    curve: clampN(Number($('#curve').val()) || 0, -359, 359),
+    curveAxis: $('#curveAxis').val() === 'height' ? 'height' : 'width',
+    bendFrom: clampN((Number($('#bendFrom').val()) || 0) / 100, 0, 1),
+    bendTo: clampN(Number.isFinite(to) ? to / 100 : 1, 0, 1),
+    shape: currentShape ? { cols: currentShape.cols, rows: currentShape.rows, depth: currentShape.depth.slice() } : null
+  };
+}
+function writeSurfaceShape(opts){
+  opts = opts || {};
+  $('#curve').val(Number(opts.curve) || 0);
+  $('#curveRange').val(clampN(Number(opts.curve) || 0, -180, 180));
+  $('#curveAxis').val(opts.curveAxis === 'height' ? 'height' : 'width');
+  $('#bendFrom').val(Math.round((opts.bendFrom == null ? 0 : opts.bendFrom) * 100));
+  $('#bendTo').val(Math.round((opts.bendTo == null ? 1 : opts.bendTo) * 100));
+  currentShape = opts.shape && opts.shape.depth
+    ? { cols: opts.shape.cols, rows: opts.shape.rows, depth: opts.shape.depth.slice() } : null;
+  $('#shapeSize').val(currentShape ? String(currentShape.cols) : '0');
+  updateBendLabels();
+  drawShapeGrid();
+}
+function updateBendLabels(){
+  const h = $('#curveAxis').val() === 'height';
+  $('#bendHint').html(h ? '0 = bottom&nbsp;|&nbsp;100 = top' : '0 = left&nbsp;|&nbsp;100 = right');
+  $('#bendPresets .bp-first').text(h ? 'Bottom half' : 'Left half');
+  $('#bendPresets .bp-last').text(h ? 'Top half' : 'Right half');
+  $('#bendPresets .bp-first-edge').text(h ? 'Bottom edge' : 'Left edge');
+  $('#bendPresets .bp-last-edge').text(h ? 'Top edge' : 'Right edge');
+}
+// The points as boxes laid out like the surface (top row first)
+function drawShapeGrid(){
+  const grid = document.getElementById('shapeGrid');
+  grid.innerHTML = '';
+  $('#shapeTools').css('display', currentShape ? 'flex' : 'none');
+  if(!currentShape) return;
+  grid.style.gridTemplateColumns = 'repeat(' + currentShape.cols + ', 1fr)';
+  currentShape.depth.forEach((d, k) => {
+    const box = document.createElement('input');
+    box.type = 'number';
+    box.value = d;
+    box.step = $('#shapeStep').val() || '0.05';
+    box.title = 'Row ' + (Math.floor(k / currentShape.cols) + 1) + ', point ' + (k % currentShape.cols + 1) + ' (+ forward, − back)';
+    box.style.cssText = 'width:100%;min-width:0;padding:2px;font-size:11px;text-align:center;';
+    const paint = () => { const v = Number(box.value) || 0; box.style.background = v > 0 ? '#ffe9d9' : v < 0 ? '#dfeaff' : '#fff'; };
+    paint();
+    box.addEventListener('input', () => {
+      currentShape.depth[k] = Number(box.value) || 0;
+      paint();
+      rebuildActiveSurface();
+    });
+    grid.appendChild(box);
+  });
+}
 
 let cubeMesh = null;
 let currentItemId = '';
@@ -561,8 +812,10 @@ function createWall(){
     height:surfaceHeight,
     tileWidth:tileWidth,
     tileHeight:tileHeight,
-    groutSize:groutSize
+    groutSize:groutSize,
+    ...readSurfaceShape()
   };
+  const deformer = surfaceDeformer(sceneWidth, sceneHeight, tileGrid.userData);
 
   const groutPlane =
     new THREE.Mesh(
@@ -598,7 +851,8 @@ function createWall(){
 
     );
   outline.scale.set(1.02, 1.02, 1.02);
-  tileGrid.add(outline);
+  // a straight outline would not follow a bent / shaped surface
+  if(!deformer) tileGrid.add(outline);
 
   const halfW = sceneWidth  / 2;
   const halfH = sceneHeight / 2;
@@ -644,6 +898,8 @@ function createWall(){
       tileGrid.add(tile);
     }
   }
+
+  if(deformer) shapeGroup(tileGrid, deformer);
 
   if(surfaceType === 'floor'){
 
@@ -746,6 +1002,7 @@ function loadSurfaceValues(){
   $('#surfaceType').val(
     wallMesh.userData.type
   );
+  writeSurfaceShape(wallMesh.userData);
   updateJSON();
 }
 
@@ -876,7 +1133,13 @@ function updateJSON(){
               surface.userData.tileHeight,
 
             groutSize:
-              surface.userData.groutSize
+              surface.userData.groutSize,
+
+            curve: surface.userData.curve || 0,
+            curveAxis: surface.userData.curveAxis || 'width',
+            bendFrom: surface.userData.bendFrom == null ? 0 : surface.userData.bendFrom,
+            bendTo: surface.userData.bendTo == null ? 1 : surface.userData.bendTo,
+            shape: freeShape(surface.userData.shape)
 
           }
 
@@ -976,7 +1239,11 @@ $('#cubeOpacity').on(
 
 $('#addSurfaceBtn').on(
   'click',
-  createWall
+  function(){
+    // a new surface starts flat
+    writeSurfaceShape({});
+    createWall();
+  }
 );
 
 $('#deleteBtn').on(
@@ -1033,6 +1300,38 @@ $('#posX,#posY,#posZ,\
 .on('input',function(){
 
   updateWall();
+});
+// Rebuild the active surface (shape / size changed), keeping where it is
+function rebuildActiveSurface(){
+  $('#surfaceWidth').trigger('change');
+}
+$('#curve').on('input', function(){
+  $('#curveRange').val(clampN(Number($(this).val()) || 0, -180, 180));
+  rebuildActiveSurface();
+});
+$('#curveRange').on('input', function(){
+  $('#curve').val($(this).val());
+  rebuildActiveSurface();
+});
+$('#curveAxis').on('change', function(){ updateBendLabels(); rebuildActiveSurface(); });
+$('#bendFrom,#bendTo').on('input', rebuildActiveSurface);
+$('#bendPresets button').on('click', function(){
+  $('#bendFrom').val($(this).data('from'));
+  $('#bendTo').val($(this).data('to'));
+  rebuildActiveSurface();
+});
+$('#shapeSize').on('change', function(){
+  const n = parseInt($(this).val()) || 0;
+  currentShape = n ? { cols: n, rows: n, depth: new Array(n * n).fill(0) } : null;
+  drawShapeGrid();
+  rebuildActiveSurface();
+});
+$('#shapeStep').on('change', drawShapeGrid);
+$('#shapeFlat').on('click', function(){
+  if(!currentShape) return;
+  currentShape.depth = currentShape.depth.map(() => 0);
+  drawShapeGrid();
+  rebuildActiveSurface();
 });
 $('#surfaceWidth,\
 #surfaceHeight,\
@@ -1119,6 +1418,8 @@ function loadRoomData(roomData){
       $('#groutSize').val(
         coord.groutSize || 0.01
       );
+
+      writeSurfaceShape(coord);
 
       createWall();
 
